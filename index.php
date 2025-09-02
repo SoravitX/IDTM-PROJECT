@@ -51,8 +51,13 @@ if (isset($_POST['login'])) {
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link rel="stylesheet"
         href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css"/>
+<!-- ใส่ใน <head> -->
+<link href="https://fonts.googleapis.com/css2?family=Kanit:wght@400;600;700&display=swap" rel="stylesheet">
 
-  <style>
+<style>
+
+
+  
     :root{
       --psu-deep-blue:    #0D4071;  /* PSU Deep Blue */
       --psu-ocean-blue:   #4173BD;  /* PSU Ocean Blue */
@@ -68,6 +73,7 @@ if (isset($_POST['login'])) {
 
     html, body { height:100%; }
     body{
+      font-family: 'Kanit', sans-serif;
       margin:0;
       display:flex; align-items:center; justify-content:center;
       background:

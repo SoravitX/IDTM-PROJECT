@@ -1,5 +1,5 @@
 <?php
-// back_store/back_store.php — แสดงเฉพาะออเดอร์สถานะ pending
+// back_store/back_store.php — แสดงออเดอร์ + ตัวช่วยค้นหาเมนู/วันเวลา + PSU Topbar
 declare(strict_types=1);
 session_start();
 if (empty($_SESSION['uid'])) { header("Location: ../index.php"); exit; }
@@ -29,25 +29,63 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'], $_POST['ord
   }
   if (!empty($_SERVER['HTTP_X_REQUESTED_WITH'])) {
     header('Content-Type: application/json; charset=utf-8');
-    echo json_encode(['ok' => $ok]);
-    exit;
+    echo json_encode(['ok' => $ok]); exit;
   }
   header("Location: back_store.php"); exit;
 }
 
-/* ---------- ดึงเฉพาะ pending ---------- */
+/* ---------- รับตัวกรองจาก GET ---------- */
+$status     = $_GET['status']     ?? 'pending'; // ค่าเริ่มต้น: pending
+$q          = trim((string)($_GET['q'] ?? '')); // ค้นหา “ชื่อเมนู”
+$date_from  = trim((string)($_GET['date_from'] ?? ''));
+$time_from  = trim((string)($_GET['time_from'] ?? ''));
+$date_to    = trim((string)($_GET['date_to'] ?? ''));
+$time_to    = trim((string)($_GET['time_to'] ?? ''));
+
+// รวมวันที่+เวลา → ช่วง datetime
+$dt_from = $date_from ? ($date_from . ' ' . ($time_from ?: '00:00:00')) : '';
+$dt_to   = $date_to   ? ($date_to   . ' ' . ($time_to   ?: '23:59:59')) : '';
+
+/* ---------- ดึงออเดอร์ตามเงื่อนไข ---------- */
 $orders = [];
-$q = "
+$where = "1=1";
+$types = '';
+$params = [];
+
+if ($status !== 'all') {
+  $where  .= " AND o.status = ?";
+  $types  .= 's';
+  $params []= $status;
+}
+if ($dt_from !== '') { $where .= " AND o.order_time >= ?"; $types.='s'; $params[] = $dt_from; }
+if ($dt_to   !== '') { $where .= " AND o.order_time <= ?"; $types.='s'; $params[] = $dt_to; }
+
+if ($q !== '') {
+  // มีเมนูชื่อเหมือนที่ค้นหาในออเดอร์นี้หรือไม่ (ใช้ EXISTS)
+  $where .= " AND EXISTS (
+    SELECT 1 FROM order_details d
+    JOIN menu m ON m.menu_id = d.menu_id
+    WHERE d.order_id = o.order_id AND m.name LIKE ?
+  )";
+  $types .= 's';
+  $params[] = '%'.$q.'%';
+}
+
+$sql = "
   SELECT o.order_id, o.user_id, o.order_time, o.status, o.total_price,
          u.username, u.name
   FROM orders o
   LEFT JOIN users u ON u.user_id = o.user_id
-  WHERE o.status='pending'
+  WHERE $where
   ORDER BY o.order_id DESC
 ";
-$res = $conn->query($q);
+
+$stmt = $conn->prepare($sql);
+if ($types!=='') $stmt->bind_param($types, ...$params);
+$stmt->execute();
+$res = $stmt->get_result();
 while ($row = $res->fetch_assoc()) { $orders[] = $row; }
-$res->close();
+$stmt->close();
 
 /* ---------- รายการในออเดอร์ ---------- */
 function get_order_lines(mysqli $conn, int $oid): array {
@@ -73,7 +111,7 @@ function money_fmt($n){ return number_format((float)$n, 2); }
 <html lang="th">
 <head>
 <meta charset="utf-8">
-<title>หลังร้าน • ออเดอร์ค้างทำ (Pending เท่านั้น)</title>
+<title>หลังร้าน • ค้นหาออเดอร์/ค้างทำ</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="stylesheet"
  href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
@@ -83,9 +121,34 @@ function money_fmt($n){ return number_format((float)$n, 2); }
   --psu-sky-blue:#29ABE2;  --psu-river-blue:#4EC5E0; --psu-sritrang:#BBB4D8;
   --ok:#2e7d32; --bad:#d9534f; --ink:#1e2a3a; --card-bg:#fff; --shadow:0 10px 24px rgba(0,0,0,.14);
 }
+/* พื้นหลังรวม */
 body{background:linear-gradient(135deg,var(--psu-deep-blue),var(--psu-ocean-blue));color:#fff;font-family:"Segoe UI",Tahoma,sans-serif;}
 .wrap{max-width:1400px;margin:26px auto;padding:0 16px;}
 .brand{font-weight:900}
+
+/* ===== PSU Topbar (เหมือนหน้าอื่น) ===== */
+.topbar{
+  position:sticky; top:0; z-index:50; padding:12px 16px; margin:16px auto 12px;
+  border-radius:14px; background:rgba(13,64,113,.92); backdrop-filter: blur(6px);
+  border:1px solid rgba(187,180,216,.25); box-shadow:0 8px 20px rgba(0,0,0,.18);
+  max-width:1400px;
+}
+.topbar-actions{ gap:8px }
+.badge-user{ background:var(--psu-ocean-blue); color:#fff; font-weight:800; border-radius:999px }
+
+/* filter bar */
+.filter{
+  background:rgba(255,255,255,.10); border:1px solid var(--psu-sritrang);
+  border-radius:14px; padding:12px; box-shadow:0 8px 18px rgba(0,0,0,.18);
+}
+.filter label{font-weight:700; font-size:.9rem}
+.filter .form-control, .filter .custom-select{
+  border-radius:999px; border:1px solid #d8e6ff;
+}
+.filter .btn-find{font-weight:800; border-radius:999px}
+.filter .btn-clear{border-radius:999px}
+
+/* cards */
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(540px,1fr));gap:18px;}
 .card{background:var(--card-bg);color:var(--ink);border:1px solid #e7e9f2;border-radius:18px;box-shadow:var(--shadow);overflow:hidden;transition:.18s}
 .card:hover{transform:translateY(-3px)}
@@ -102,30 +165,88 @@ body{background:linear-gradient(135deg,var(--psu-deep-blue),var(--psu-ocean-blue
 .btn-ready{flex:1;background:var(--ok);color:#fff;font-weight:800;border-radius:12px;padding:10px}
 .btn-cancel{flex:1;background:var(--bad);color:#fff;font-weight:800;border-radius:12px;padding:10px}
 .empty{background:rgba(255,255,255,.12);border:1px dashed var(--psu-sritrang);border-radius:12px;padding:24px;text-align:center}
+@media (max-width:576px){ .topbar{flex-wrap:wrap; gap:8px} .topbar-actions{width:100%; justify-content:flex-end} }
 </style>
 </head>
 <body>
-<div class="wrap">
-  <div class="d-flex justify-content-between align-items-center mb-3">
-    <h4 class="brand m-0">PSU Blue Cafe • ออเดอร์ค้างทำ</h4>
-    <div>
-      <a href="back_store_history.php" class="btn btn-light mr-2">ประวัติออเดอร์ (Ready/Cancel)</a>
-      <a href="../logout.php" class="btn btn-outline-light">ออกจากระบบ</a>
-    </div>
+
+<!-- ===== Topbar (เหมือนหน้าอื่น) ===== -->
+<div class="topbar d-flex align-items-center justify-content-between">
+  <div class="d-flex align-items-center">
+    <h4 class="m-0 brand">PSU Blue Cafe • หลังร้าน</h4>
   </div>
+  <div class="d-flex align-items-center topbar-actions">
+    
+    <a href="back_store_history.php" class="btn btn-primary btn-sm mr-2">ประวัติออเดอร์</a>
+    <a href="../SelectRole/role.php" class="btn btn-primary btn-sm mr-2">ตําเเหน่ง</a>
+    <span class="badge badge-user px-3 py-2 mr-2">ผู้ใช้: <?= htmlspecialchars($_SESSION['username'] ?? '', ENT_QUOTES, 'UTF-8') ?></span>
+    <a href="../logout.php" class="btn btn-sm btn-outline-light">ออกจากระบบ</a>
+  </div>
+</div>
+
+<div class="wrap">
+
+  <!-- Filter bar -->
+  <form class="filter mb-3" method="get">
+    <div class="form-row">
+      <div class="col-md-2 mb-2">
+        <label>สถานะ</label>
+        <select name="status" class="custom-select">
+          <?php
+            $opts = ['pending'=>'Pending','ready'=>'Ready','canceled'=>'Canceled','all'=>'(ทั้งหมด)'];
+            foreach($opts as $k=>$v){
+              $sel = ($status===$k) ? 'selected' : '';
+              echo '<option value="'.htmlspecialchars($k,ENT_QUOTES).'" '.$sel.'>'.$v.'</option>';
+            }
+          ?>
+        </select>
+      </div>
+      <div class="col-md-3 mb-2">
+        <label>ค้นหาชื่อเมนู</label>
+        <input type="text" name="q" class="form-control" value="<?= htmlspecialchars($q,ENT_QUOTES,'UTF-8') ?>" placeholder="พิมพ์ชื่อเมนู เช่น ชาไทย">
+      </div>
+      <div class="col-md-3 mb-2">
+        <label>ตั้งแต่ (วันที่ / เวลา)</label>
+        <div class="form-row">
+          <div class="col"><input type="date" name="date_from" class="form-control" value="<?= htmlspecialchars($date_from,ENT_QUOTES,'UTF-8') ?>"></div>
+          <div class="col"><input type="time" name="time_from" class="form-control" value="<?= htmlspecialchars($time_from,ENT_QUOTES,'UTF-8') ?>"></div>
+        </div>
+      </div>
+      <div class="col-md-3 mb-2">
+        <label>ถึง (วันที่ / เวลา)</label>
+        <div class="form-row">
+          <div class="col"><input type="date" name="date_to" class="form-control" value="<?= htmlspecialchars($date_to,ENT_QUOTES,'UTF-8') ?>"></div>
+          <div class="col"><input type="time" name="time_to" class="form-control" value="<?= htmlspecialchars($time_to,ENT_QUOTES,'UTF-8') ?>"></div>
+        </div>
+      </div>
+      <div class="col-md-1 mb-2 d-flex align-items-end">
+        <button class="btn btn-primary btn-block btn-find">ค้นหา</button>
+      </div>
+      <div class="col-md-1 mb-2 d-flex align-items-end">
+        <a href="back_store.php" class="btn btn-light btn-block btn-clear">ล้าง</a>
+      </div>
+    </div>
+    
+  </form>
 
   <div class="grid" id="grid">
     <?php if (empty($orders)): ?>
-      <div class="empty">ยังไม่มีออเดอร์ค้างทำ</div>
+      <div class="empty">ไม่มีออเดอร์ตามเงื่อนไข</div>
     <?php else: ?>
       <?php foreach ($orders as $o): $lines = get_order_lines($conn,(int)$o['order_id']); ?>
         <div class="card" data-order-id="<?= (int)$o['order_id'] ?>">
           <div class="head">
             <div>
               <div class="oid">#<?= (int)$o['order_id'] ?> — <?= htmlspecialchars($o['username'] ?? 'user',ENT_QUOTES,'UTF-8') ?></div>
-              <div class="meta"><?= htmlspecialchars($o['order_time'],ENT_QUOTES,'UTF-8') ?></div>
+              <div class="meta"><?= htmlspecialchars($o['order_time'],ENT_QUOTES,'UTF-8') ?> · สถานะ: <?= htmlspecialchars($o['status'],ENT_QUOTES,'UTF-8') ?></div>
             </div>
-            <span class="badge badge-warning p-2 font-weight-bold">pending</span>
+            <?php if($o['status']==='pending'): ?>
+              <span class="badge badge-warning p-2 font-weight-bold">pending</span>
+            <?php elseif($o['status']==='ready'): ?>
+              <span class="badge badge-success p-2 font-weight-bold">ready</span>
+            <?php else: ?>
+              <span class="badge badge-danger p-2 font-weight-bold">canceled</span>
+            <?php endif; ?>
           </div>
 
           <?php foreach ($lines as $ln): ?>
@@ -145,6 +266,7 @@ body{background:linear-gradient(135deg,var(--psu-deep-blue),var(--psu-ocean-blue
             <div><?= money_fmt($o['total_price']) ?> ฿</div>
           </div>
 
+          <?php if($o['status']==='pending'): ?>
           <div class="actions">
             <form class="m-0 js-status" method="post">
               <input type="hidden" name="order_id" value="<?= (int)$o['order_id'] ?>">
@@ -157,6 +279,7 @@ body{background:linear-gradient(135deg,var(--psu-deep-blue),var(--psu-ocean-blue
               <button class="btn btn-cancel btn-block" type="submit">ยกเลิก</button>
             </form>
           </div>
+          <?php endif; ?>
         </div>
       <?php endforeach; ?>
     <?php endif; ?>
@@ -164,27 +287,33 @@ body{background:linear-gradient(135deg,var(--psu-deep-blue),var(--psu-ocean-blue
 </div>
 
 <script>
-/** ===== Real-time-ish by API polling =====
- * - โพลล์ ../api/orders_feed.php ทุก 1.5s
- * - ถ้าเจอออเดอร์ใหม่ (status='pending') แล้วยังไม่มีการ์ด => ไปโหลดเต็มจาก ../api/order_get.php?id=... แล้วแทรก DOM
- * - ถ้าเจอสถานะเปลี่ยนจาก pending => ซ่อนการ์ด (ลบออก)
- */
+/** ===== Poll เฉพาะกรณี: ดู pending แบบไม่ใส่ตัวกรอง ===== */
+const url = new URL(location.href);
+const status = url.searchParams.get('status') || 'pending';
+const hasFilters =
+  (url.searchParams.get('q')||'').trim() !== '' ||
+  (url.searchParams.get('date_from')||'') !== '' ||
+  (url.searchParams.get('date_to')||'')   !== '' ||
+  (url.searchParams.get('time_from')||'') !== '' ||
+  (url.searchParams.get('time_to')||'')   !== '' ||
+  (status !== 'pending' && status !== null);
+
 const FEED_URL = '../api/orders_feed.php';
 const GET_URL  = (id) => '../api/order_get.php?id=' + encodeURIComponent(id);
 
-let lastSince = '';          // pointer เวลาอัปเดตล่าสุดที่รู้อยู่
-const knownStatus = {};      // จดสถานะล่าสุดต่อ order_id
+let lastSince = '';
+const knownStatus = {};
 
-// สร้าง/อัปเดตการ์ด 1 ใบ จาก order+lines
+function escapeHtml(s) {
+  return (s||'').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+}
+
 function renderCard(order, lines) {
   const grid = document.getElementById('grid');
   const id = order.order_id;
   let card = document.querySelector(`[data-order-id="${id}"]`);
-
-  // ถ้ามีอยู่แล้ว ลบก่อนเพื่ออัปเดตใหม่ (ง่ายและชัวร์)
   if (card) card.remove();
 
-  // สร้าง DOM แบบย่อ (ใช้สไตล์เดิมของคุณ)
   const div = document.createElement('div');
   div.className = 'card';
   div.setAttribute('data-order-id', id);
@@ -192,7 +321,7 @@ function renderCard(order, lines) {
     <div class="head">
       <div>
         <div class="oid">#${id} — ${escapeHtml(order.username||'user')}</div>
-        <div class="meta">${escapeHtml(order.order_time)}</div>
+        <div class="meta">${escapeHtml(order.order_time)} · สถานะ: ${escapeHtml(order.status)}</div>
       </div>
       <span class="badge badge-warning p-2 font-weight-bold">${escapeHtml(order.status)}</span>
     </div>
@@ -222,10 +351,9 @@ function renderCard(order, lines) {
       </form>
     </div>
   `;
-  grid.prepend(div); // ใหม่สุดไว้บน
+  grid.prepend(div);
 }
 
-// ซ่อน/ลบการ์ดเมื่อไม่ใช่ pending แล้ว
 function hideCard(id) {
   const card = document.querySelector(`[data-order-id="${id}"]`);
   if (!card) return;
@@ -235,12 +363,6 @@ function hideCard(id) {
   setTimeout(() => card.remove(), 200);
 }
 
-// escape helper
-function escapeHtml(s) {
-  return (s||'').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
-}
-
-// โพลลิ่ง
 async function poll() {
   try {
     const qs = lastSince ? ('?since=' + encodeURIComponent(lastSince)) : '';
@@ -248,19 +370,16 @@ async function poll() {
     if (!r.ok) throw new Error('HTTP ' + r.status);
     const data = await r.json();
 
-    if (!lastSince && data.now) lastSince = data.now; // ครั้งแรก
+    if (!lastSince && data.now) lastSince = data.now;
 
     if (Array.isArray(data.orders) && data.orders.length) {
-      lastSince = data.orders[data.orders.length - 1].updated_at; // เลื่อนไปเวลาล่าสุด
-
-      // ประมวลผลทุกรายการเปลี่ยนแปลง
+      lastSince = data.orders[data.orders.length - 1].updated_at;
       for (const o of data.orders) {
         const id = o.order_id;
         const st = o.status;
         const prev = knownStatus[id];
         knownStatus[id] = st;
 
-        // กรณี: ออเดอร์ใหม่ (pending) -> ยังไม่มีการ์ด => ดึงข้อมูลเต็มแล้วแสดง
         if (st === 'pending') {
           const existed = !!document.querySelector(`[data-order-id="${id}"]`);
           if (!existed) {
@@ -268,23 +387,20 @@ async function poll() {
               const rr = await fetch(GET_URL(id), { cache:'no-store' });
               const j  = await rr.json();
               if (j && j.ok) renderCard(j.order, j.lines || []);
-            } catch (e) { /* เงียบไว้ก่อน */ }
+            } catch (e) {}
           }
         } else {
-          // สถานะเปลี่ยนเป็น ready/canceled => ซ่อนการ์ด
           hideCard(id);
         }
       }
     }
   } catch (e) {
-    // console.warn('poll error', e);
   } finally {
-    setTimeout(poll, 1500); // โพลทุก ~1.5s
+    setTimeout(poll, 1500);
   }
 }
-window.addEventListener('load', poll);
 
-// ส่งสถานะแบบ AJAX (คงโค้ดเดิมของคุณ แต่เพิ่มป้องกันดับเบิลคลิก)
+// ส่งสถานะแบบ AJAX
 document.addEventListener('submit', async (e)=>{
   const form = e.target.closest('form.js-status'); if(!form) return;
   e.preventDefault();
@@ -301,14 +417,18 @@ document.addEventListener('submit', async (e)=>{
     if(data && data.ok){
       hideCard(card.getAttribute('data-order-id'));
     } else {
-      alert('อัปเดตไม่สำเร็จ (อาจถูกอัปเดตไปแล้ว)'); if(btn) btn.disabled=false;
+      alert('อัปเดตไม่สำเร็จ'); if(btn) btn.disabled=false;
     }
   }catch(err){
     alert('เชื่อมต่อไม่สำเร็จ'); if(btn) btn.disabled=false;
   }
 });
-</script>
 
+// เริ่ม poll เฉพาะกรณีดู pending และไม่ตั้งตัวกรองอื่น
+if (!hasFilters && status === 'pending') {
+  window.addEventListener('load', poll);
+}
+</script>
 
 </body>
 </html>

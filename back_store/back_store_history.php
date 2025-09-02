@@ -1,5 +1,5 @@
 <?php
-// back_store/back_store_history.php — ประวัติออเดอร์ที่อัปเดตแล้ว (ready/canceled)
+// back_store/back_store_history.php — ประวัติออเดอร์ที่อัปเดตแล้ว (ready/canceled) + PSU Topbar
 declare(strict_types=1);
 session_start();
 if (empty($_SESSION['uid'])) { header("Location: ../index.php"); exit; }
@@ -34,7 +34,7 @@ if ($from!==''){ $sql.=" AND DATE(o.order_time) >= ?"; $types.='s'; $params[]=$f
 if ($to!==''){   $sql.=" AND DATE(o.order_time) <= ?"; $types.='s'; $params[]=$to; }
 if ($qnum!==''){ $sql.=" AND o.order_id = ?"; $types.='i'; $params[]=(int)$qnum; }
 
-$sql .= " ORDER BY o.order_id DESC LIMIT 300"; // ป้องกันยาวเกิน
+$sql .= " ORDER BY o.order_id DESC LIMIT 300";
 
 if ($types!==''){
   $stmt = $conn->prepare($sql);
@@ -75,7 +75,18 @@ function get_order_lines(mysqli $conn, int $oid): array {
   --psu-deep-blue:#0D4071; --psu-ocean-blue:#4173BD; --psu-sritrang:#BBB4D8;
 }
 body{background:linear-gradient(135deg,var(--psu-deep-blue),var(--psu-ocean-blue));color:#fff;font-family:"Segoe UI",Tahoma;}
-.wrap{max-width:1400px;margin:26px auto;padding:0 16px;}
+.wrap{max-width:1400px;margin:18px auto;padding:0 16px;}
+/* Topbar */
+.topbar{
+  position:sticky; top:0; z-index:50; padding:12px 16px; margin:16px auto 12px;
+  border-radius:14px; background:rgba(13,64,113,.92); backdrop-filter: blur(6px);
+  border:1px solid rgba(187,180,216,.25); box-shadow:0 8px 20px rgba(0,0,0,.18);
+  max-width:1400px;
+}
+.topbar-actions{ gap:8px }
+.badge-user{ background:#4173BD; color:#fff; font-weight:800; border-radius:999px }
+@media (max-width:576px){ .topbar{flex-wrap:wrap; gap:8px} .topbar-actions{width:100%; justify-content:flex-end} }
+
 .card{background:#fff;color:#0D4071;border:1px solid #e7e9f2;border-radius:16px;box-shadow:0 10px 24px rgba(0,0,0,.14);overflow:hidden}
 .head{display:flex;justify-content:space-between;align-items:flex-start;background:#f7fbff;border-bottom:1px solid #eef0f6;padding:12px 16px}
 .badge-ready{background:#2e7d32} .badge-cancel{background:#d9534f}
@@ -85,15 +96,22 @@ body{background:linear-gradient(135deg,var(--psu-deep-blue),var(--psu-ocean-blue
 </style>
 </head>
 <body>
-<div class="wrap">
-  <div class="d-flex justify-content-between align-items-center mb-3">
-    <h4 class="m-0">ประวัติออเดอร์ (Ready/Cancel)</h4>
-    <div>
-      <a href="back_store.php" class="btn btn-light mr-2">กลับหน้าหลังร้าน</a>
-      <a href="../logout.php" class="btn btn-outline-light">ออกจากระบบ</a>
-    </div>
-  </div>
 
+<!-- Topbar -->
+<div class="topbar d-flex align-items-center justify-content-between">
+  <div class="d-flex align-items-center">
+    <h4 class="m-0">PSU Blue Cafe • ประวัติออเดอร์</h4>
+  </div>
+  <div class="d-flex align-items-center topbar-actions">
+    
+    <a href="back_store.php" class="btn btn-primary btn-sm mr-2">กลับหน้าหลังร้าน</a> 
+    <a href="../SelectRole/role.php" class="btn btn-primary btn-sm mr-2">ตําเเหน่ง</a>
+    <span class="badge badge-user px-3 py-2 mr-2">ผู้ใช้: <?= htmlspecialchars($_SESSION['username'] ?? '', ENT_QUOTES, 'UTF-8') ?></span>
+    <a href="../logout.php" class="btn btn-sm btn-outline-light">ออกจากระบบ</a>
+  </div>
+</div>
+
+<div class="wrap">
   <form class="card p-3 mb-3" method="get" style="color:#0D4071">
     <div class="form-row">
       <div class="col-md-2">

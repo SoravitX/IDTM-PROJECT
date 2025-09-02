@@ -160,7 +160,7 @@ body{
       <small class="text-light">ผู้ใช้: <?= h($username ?: $name) ?></small>
     </div>
     <div>
-      <a href="role.php" class="btn btn-sm btn-outline-light">ย้อนกลับ</a>
+      <a href="../SelectRole/role.php" class="btn btn-sm btn-outline-light">ย้อนกลับ</a>
       <a href="../logout.php" class="btn btn-sm btn-outline-light">ออกจากระบบ</a>
     </div>
   </div>

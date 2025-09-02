@@ -101,13 +101,7 @@ if (empty($_SESSION['uid'])) {
             <h5>ลงเวลาทำงาน</h5>
           </div>
         </a>
-      </div>
-      <div class="col-md-6 mb-4">
-        <a href="../admin/adminmenu.php" class="text-dark">
-          <div class="card-option">
-            <img src="icons/admin.png" alt="ผู้ดูแลระบบ">
-            <h5>ผู้ดูแลระบบ</h5>
-          </div>
+      
         </a>
       </div>
     </div>
