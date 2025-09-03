@@ -14,27 +14,12 @@
 /*!40101 SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='NO_AUTO_VALUE_ON_ZERO' */;
 /*!40111 SET @OLD_SQL_NOTES=@@SQL_NOTES, SQL_NOTES=0 */;
 
--- Dumping structure for table psu_blue_cafe.attendance
-CREATE TABLE IF NOT EXISTS `users` (
-  `user_id` int(11) NOT NULL AUTO_INCREMENT,
-  `username` varchar(50) NOT NULL,
-  `password` varchar(255) NOT NULL,
-  `student_ID` int(11) NOT NULL,
-  `name` varchar(100) NOT NULL,
-  `role` enum('admin','employee') NOT NULL DEFAULT 'employee',
-  PRIMARY KEY (`user_id`),
-  UNIQUE KEY `username` (`username`)
-) ENGINE=InnoDB AUTO_INCREMENT=8 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
--- Dumping data for table psu_blue_cafe.users: ~7 rows (approximately)
-REPLACE INTO `users` (`user_id`, `username`, `password`, `student_ID`, `name`, `role`) VALUES
-	(1, 'admin1', '81dc9bdb52d04dc20036dbd8313ed055', 65010001, 'แอดมินใหญ่', 'admin'),
-	(2, 'front1', '81dc9bdb52d04dc20036dbd8313ed055', 65010002, 'พนักงานหน้าร้าน', 'employee'),
-	(3, 'a1', '81dc9bdb52d04dc20036dbd8313ed055', 65010002, 'พนักงานหน้าร้าน', 'employee'),
-	(4, 'awdwad', '$2y$10$Qf8RcDT83CjbbKAUuHz8Uu9X.z0GAuIuqUIuXDCPUgVDYuUCus4sG', 2147483647, 'PUBG', 'employee'),
-	(5, 'admin', '$2y$10$rCtZwYbc9g3vcp41fFXl0O7SYRQSyVANmqEq.n/bOgF6gYne3Y5ku', 23232, 'dawd', 'employee'),
-	(6, 'a2', '$2y$10$NGEtJrTB4vy4Qh0blF7vNe28eNVPLsO66MYWCyjmi9hvUA3dESI2O', 2147483647, '1dad', 'employee'),
-	(7, 'a3', '$2y$10$LuciTtzwiNMbR2zGMlFXB.D.4CDjDipfaPHK1m8NzIEy5lctHHPPy', 123, 'a3', 'employee');
+-- Dumping database structure for psu_blue_cafe
+CREATE DATABASE IF NOT EXISTS `psu_blue_cafe` /*!40100 DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci */;
+USE `psu_blue_cafe`;
+
+-- Dumping structure for table psu_blue_cafe.attendance
 CREATE TABLE IF NOT EXISTS `attendance` (
   `attendance_id` int(11) NOT NULL AUTO_INCREMENT,
   `user_id` int(11) NOT NULL,
@@ -45,9 +30,9 @@ CREATE TABLE IF NOT EXISTS `attendance` (
   PRIMARY KEY (`attendance_id`),
   KEY `fk_attendance_user` (`user_id`),
   CONSTRAINT `fk_attendance_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`user_id`) ON DELETE CASCADE ON UPDATE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=5 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=10 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Dumping data for table psu_blue_cafe.attendance: ~4 rows (approximately)
+-- Dumping data for table psu_blue_cafe.attendance: ~5 rows (approximately)
 REPLACE INTO `attendance` (`attendance_id`, `user_id`, `date_in`, `time_in`, `date_out`, `time_out`) VALUES
 	(1, 3, '2025-08-27', '21:23:37', '2025-08-27', '21:23:48'),
 	(2, 3, '2025-08-27', '21:24:42', '2025-08-27', '21:24:45'),
@@ -117,9 +102,9 @@ CREATE TABLE IF NOT EXISTS `orders` (
   KEY `idx_orders_user_updated` (`user_id`,`updated_at`,`status`),
   KEY `idx_orders_feed` (`user_id`,`updated_at`,`order_id`),
   CONSTRAINT `fk_orders_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`user_id`) ON DELETE CASCADE ON UPDATE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=314 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=323 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Dumping data for table psu_blue_cafe.orders: ~313 rows (approximately)
+-- Dumping data for table psu_blue_cafe.orders: ~320 rows (approximately)
 REPLACE INTO `orders` (`order_id`, `user_id`, `order_time`, `status`, `total_price`, `updated_at`) VALUES
 	(1, 4, '2025-08-19 00:45:00', 'ready', 80.00, '2025-08-24 22:35:02.000000'),
 	(2, 4, '2025-08-19 00:48:53', 'ready', 40.00, '2025-08-24 22:35:03.000000'),
@@ -433,7 +418,16 @@ REPLACE INTO `orders` (`order_id`, `user_id`, `order_time`, `status`, `total_pri
 	(310, 3, '2025-09-03 12:49:23', 'ready', 40.00, '2025-09-03 12:49:25.000000'),
 	(311, 3, '2025-09-03 12:49:29', 'ready', 40.00, '2025-09-03 12:49:31.000000'),
 	(312, 3, '2025-09-03 12:49:34', 'ready', 40.00, '2025-09-03 12:49:36.000000'),
-	(313, 3, '2025-09-03 12:50:39', 'ready', 40.00, '2025-09-03 12:50:42.000000');
+	(313, 3, '2025-09-03 12:50:39', 'ready', 40.00, '2025-09-03 12:50:42.000000'),
+	(314, 3, '2025-09-03 12:55:54', 'ready', 40.00, '2025-09-03 12:55:56.000000'),
+	(315, 3, '2025-09-03 12:59:27', 'ready', 40.00, '2025-09-03 12:59:29.000000'),
+	(316, 3, '2025-09-03 12:59:36', 'ready', 40.00, '2025-09-03 12:59:38.000000'),
+	(317, 3, '2025-09-03 12:59:46', 'ready', 40.00, '2025-09-03 12:59:48.000000'),
+	(318, 3, '2025-09-03 12:59:53', 'ready', 40.00, '2025-09-03 12:59:55.000000'),
+	(319, 3, '2025-09-03 12:59:59', 'ready', 40.00, '2025-09-03 13:00:08.000000'),
+	(320, 3, '2025-09-03 13:00:05', 'ready', 40.00, '2025-09-03 13:00:08.000000'),
+	(321, 3, '2025-09-03 13:00:26', 'ready', 40.00, '2025-09-03 13:00:28.000000'),
+	(322, 3, '2025-09-03 13:02:49', 'pending', 40.00, '2025-09-03 13:02:49.636358');
 
 -- Dumping structure for table psu_blue_cafe.order_details
 CREATE TABLE IF NOT EXISTS `order_details` (
@@ -451,9 +445,9 @@ CREATE TABLE IF NOT EXISTS `order_details` (
   CONSTRAINT `fk_details_menu` FOREIGN KEY (`menu_id`) REFERENCES `menu` (`menu_id`) ON DELETE CASCADE ON UPDATE CASCADE,
   CONSTRAINT `fk_details_order` FOREIGN KEY (`order_id`) REFERENCES `orders` (`order_id`) ON DELETE CASCADE ON UPDATE CASCADE,
   CONSTRAINT `fk_details_promo` FOREIGN KEY (`promo_id`) REFERENCES `promotions` (`promo_id`) ON DELETE SET NULL ON UPDATE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=350 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=359 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Dumping data for table psu_blue_cafe.order_details: ~347 rows (approximately)
+-- Dumping data for table psu_blue_cafe.order_details: ~342 rows (approximately)
 REPLACE INTO `order_details` (`order_detail_id`, `order_id`, `menu_id`, `promo_id`, `quantity`, `note`, `total_price`) VALUES
 	(3, 3, 8, NULL, 6, NULL, 240.00),
 	(4, 4, 7, NULL, 1, 'ขนาด: ธรรมดา | หวาน: ปกติ | น้ำแข็ง: ปกติ', 40.00),
@@ -801,7 +795,16 @@ REPLACE INTO `order_details` (`order_detail_id`, `order_id`, `menu_id`, `promo_i
 	(346, 310, 17, NULL, 1, 'ขนาด: ธรรมดา | หวาน: ปกติ | น้ำแข็ง: ปกติ', 40.00),
 	(347, 311, 22, NULL, 1, 'ขนาด: ธรรมดา | หวาน: ปกติ | น้ำแข็ง: ปกติ', 40.00),
 	(348, 312, 23, NULL, 1, 'ขนาด: ธรรมดา | หวาน: ปกติ | น้ำแข็ง: ปกติ', 40.00),
-	(349, 313, 10, NULL, 1, 'ขนาด: ธรรมดา | หวาน: ปกติ | น้ำแข็ง: ปกติ', 40.00);
+	(349, 313, 10, NULL, 1, 'ขนาด: ธรรมดา | หวาน: ปกติ | น้ำแข็ง: ปกติ', 40.00),
+	(350, 314, 9, NULL, 1, 'ขนาด: ธรรมดา | หวาน: ปกติ | น้ำแข็ง: ปกติ', 40.00),
+	(351, 315, 10, NULL, 1, 'ขนาด: ธรรมดา | หวาน: ปกติ | น้ำแข็ง: ปกติ', 40.00),
+	(352, 316, 8, NULL, 1, 'ขนาด: ธรรมดา | หวาน: ปกติ | น้ำแข็ง: ปกติ', 40.00),
+	(353, 317, 9, NULL, 1, 'ขนาด: ธรรมดา | หวาน: ปกติ | น้ำแข็ง: ปกติ', 40.00),
+	(354, 318, 9, NULL, 1, 'ขนาด: ธรรมดา | หวาน: ปกติ | น้ำแข็ง: ปกติ', 40.00),
+	(355, 319, 10, NULL, 1, 'ขนาด: ธรรมดา | หวาน: ปกติ | น้ำแข็ง: ปกติ', 40.00),
+	(356, 320, 9, NULL, 1, 'ขนาด: ธรรมดา | หวาน: ปกติ | น้ำแข็ง: ปกติ', 40.00),
+	(357, 321, 7, NULL, 1, 'ขนาด: ธรรมดา | หวาน: ปกติ | น้ำแข็ง: ปกติ', 40.00),
+	(358, 322, 11, NULL, 1, 'ขนาด: ธรรมดา | หวาน: ปกติ | น้ำแข็ง: ปกติ', 40.00);
 
 -- Dumping structure for table psu_blue_cafe.promotions
 CREATE TABLE IF NOT EXISTS `promotions` (
@@ -819,7 +822,26 @@ CREATE TABLE IF NOT EXISTS `promotions` (
 -- Dumping data for table psu_blue_cafe.promotions: ~0 rows (approximately)
 
 -- Dumping structure for table psu_blue_cafe.users
+CREATE TABLE IF NOT EXISTS `users` (
+  `user_id` int(11) NOT NULL AUTO_INCREMENT,
+  `username` varchar(50) NOT NULL,
+  `password` varchar(255) NOT NULL,
+  `student_ID` int(11) NOT NULL,
+  `name` varchar(100) NOT NULL,
+  `role` enum('admin','employee') NOT NULL DEFAULT 'employee',
+  PRIMARY KEY (`user_id`),
+  UNIQUE KEY `username` (`username`)
+) ENGINE=InnoDB AUTO_INCREMENT=8 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
+-- Dumping data for table psu_blue_cafe.users: ~7 rows (approximately)
+REPLACE INTO `users` (`user_id`, `username`, `password`, `student_ID`, `name`, `role`) VALUES
+	(1, 'admin1', '81dc9bdb52d04dc20036dbd8313ed055', 65010001, 'แอดมินใหญ่', 'admin'),
+	(2, 'front1', '81dc9bdb52d04dc20036dbd8313ed055', 65010002, 'พนักงานหน้าร้าน', 'employee'),
+	(3, 'a1', '81dc9bdb52d04dc20036dbd8313ed055', 65010002, 'พนักงานหน้าร้าน', 'employee'),
+	(4, 'awdwad', '$2y$10$Qf8RcDT83CjbbKAUuHz8Uu9X.z0GAuIuqUIuXDCPUgVDYuUCus4sG', 2147483647, 'PUBG', 'employee'),
+	(5, 'admin', '$2y$10$rCtZwYbc9g3vcp41fFXl0O7SYRQSyVANmqEq.n/bOgF6gYne3Y5ku', 23232, 'dawd', 'employee'),
+	(6, 'a2', '$2y$10$NGEtJrTB4vy4Qh0blF7vNe28eNVPLsO66MYWCyjmi9hvUA3dESI2O', 2147483647, '1dad', 'employee'),
+	(7, 'a3', '$2y$10$LuciTtzwiNMbR2zGMlFXB.D.4CDjDipfaPHK1m8NzIEy5lctHHPPy', 123, 'a3', 'employee');
 
 /*!40103 SET TIME_ZONE=IFNULL(@OLD_TIME_ZONE, 'system') */;
 /*!40101 SET SQL_MODE=IFNULL(@OLD_SQL_MODE, '') */;

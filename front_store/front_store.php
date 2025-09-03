@@ -106,7 +106,7 @@ if ($action === 'checkout' && !empty($_SESSION['cart'])) {
   $stmt->close();
 
   $_SESSION['cart'] = [];
-  $success_msg = "สั่งออเดอร์แล้ว! เลขที่ออเดอร์ #{$order_id} — ไปดูรายละเอียดที่หน้า Check Out ได้";
+  $success_msg = "สั่งออเดอร์แล้ว! เลขที่ออเดอร์ #{$order_id} — ไปดูรายละเอียดที่หน้า Order ได้";
 }
 
 /* ---------- Data ---------- */
@@ -250,7 +250,7 @@ body{ background:linear-gradient(135deg, var(--bg-grad1), var(--bg-grad2)); colo
         เสียงแจ้งเตือน
       </label>
 
-      <a href="checkout.php" class="btn btn-primary btn-sm mr-2" style="font-weight:800">Check Order</a>
+      <a href="checkout.php" class="btn btn-primary btn-sm mr-2" style="font-weight:800">Order</a>
       <a href="../SelectRole/role.php" class="btn btn-primary btn-sm mr-2" style="font-weight:800">ตําเเหน่ง</a>
       <span class="badge badge-user px-3 py-2 mr-2">ผู้ใช้: <?= htmlspecialchars($_SESSION['username'] ?? '', ENT_QUOTES,'UTF-8') ?></span>
       <a class="btn btn-sm btn-outline-light" href="../logout.php">ออกจากระบบ</a>
@@ -260,7 +260,7 @@ body{ background:linear-gradient(135deg, var(--bg-grad1), var(--bg-grad2)); colo
   <?php if ($success_msg): ?>
     <div class="alert alert-ok pos-card p-3 mb-3">
       <?= htmlspecialchars($success_msg, ENT_QUOTES, 'UTF-8') ?>
-      &nbsp;&nbsp;<a class="btn btn-light btn-sm" href="checkout.php">ไปหน้า Check Out</a>
+      &nbsp;&nbsp;<a class="btn btn-light btn-sm" href="checkout.php">ไปหน้า Order</a>
     </div>
   <?php endif; ?>
 

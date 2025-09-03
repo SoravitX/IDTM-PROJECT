@@ -188,7 +188,7 @@ body{ background:linear-gradient(135deg,#0D4071,#4173BD); color:#fff; font-famil
           <?php else: ?>
             <button type="button" class="btn btn-cancel" onclick="window.parent?.document.getElementById('menuModalClose')?.click()">ยกเลิก</button>
           <?php endif; ?>
-          <button type="submit" class="btn btn-save"><?= $editMode ? 'บันทึกการแก้ไข' : 'เพิ่มในตะกร้า' ?></button>
+          <button type="submit" class="btn btn-save"><?= $editMode ? 'บันทึกการแก้ไข' : 'เพิ่มในออเดอร์' ?></button>
         </div>
       </form>
     </div>
