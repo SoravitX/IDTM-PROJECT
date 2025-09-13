@@ -35,26 +35,34 @@ if ($editMode && $old_key !== '' && isset($_SESSION['cart'][$old_key])) {
   $currentNote = (string)($_SESSION['cart'][$old_key]['note'] ?? '');
 }
 
+/* ----- แตก note เก่า (ถ้ามี) เพื่อ preselect ----- */
 $selSize='ธรรมดา'; $selSweet='ปกติ'; $selIce='ปกติ'; $selToppings=[]; $selFree='';
 if ($currentNote !== '') {
   $parts = explode(' | ', $currentNote);
   foreach ($parts as $p) {
     $p = trim($p);
-    if (stripos($p,'ขนาด:')===0)     $selSize  = trim(mb_substr($p, mb_strlen('ขนาด:')));
-    elseif (stripos($p,'หวาน:')===0) $selSweet = trim(mb_substr($p, mb_strlen('หวาน:')));
-    elseif (stripos($p,'น้ำแข็ง:')===0) $selIce = trim(mb_substr($p, mb_strlen('น้ำแข็ง:')));
+    if (stripos($p,'ขนาด:')===0)         $selSize  = trim(mb_substr($p, mb_strlen('ขนาด:')));
+    elseif (stripos($p,'หวาน:')===0)     $selSweet = trim(mb_substr($p, mb_strlen('หวาน:')));
+    elseif (stripos($p,'น้ำแข็ง:')===0) $selIce   = trim(mb_substr($p, mb_strlen('น้ำแข็ง:')));
     elseif (stripos($p,'ท็อปปิง:')===0) {
       $tp = trim(mb_substr($p, mb_strlen('ท็อปปิง:'))); if ($tp!=='') $selToppings = array_map('trim', explode(',', $tp));
     } elseif (stripos($p,'หมายเหตุ:')===0) $selFree = trim(mb_substr($p, mb_strlen('หมายเหตุ:')));
   }
 }
 
-$toppings = ['ไข่มุก','เจลลี่','พุดดิ้ง','วิปครีม'];
+/* ----- ดึงท็อปปิงจากตาราง toppings (ทุกเมนูใช้ชุดเดียวกัน) ----- */
+$toppings = [];
+$rs = $conn->query("SELECT topping_id, name, base_price FROM toppings WHERE is_active=1 ORDER BY name");
+while($row = $rs->fetch_assoc()){
+  $toppings[] = $row; // [topping_id, name, base_price]
+}
 $isPopup = (int)($_GET['popup'] ?? 0) === 1;
 
 /* ============ VIEW ============ */
 if (!$isPopup):
+  
 ?>
+
 <!doctype html>
 <html lang="th">
 <head>
@@ -74,7 +82,6 @@ body{ background:linear-gradient(135deg,#0D4071,#4173BD); color:#fff; font-famil
 
 <!-- ===== Popup / Inner Content ===== -->
 <style>
-/* scope ทั้งหมดไว้ใน #popup-root เพื่อไม่ชนภายนอก */
 #popup-root{
   background:linear-gradient(180deg, rgba(255,255,255,.9), rgba(255,255,255,.82));
   border-radius:20px; border:1px solid #cfe3ff; overflow:hidden;
@@ -92,33 +99,24 @@ body{ background:linear-gradient(135deg,#0D4071,#4173BD); color:#fff; font-famil
 .price-tag{ font-size:1.6rem; font-weight:900; color:#063862; background:linear-gradient(180deg,#4EC5E0,#29ABE2);
   display:inline-block; padding:6px 14px; border-radius:12px; box-shadow:0 6px 16px rgba(41,171,226,.35); }
 
-/* ซ่อนวงกลม/สี่เหลี่ยม radio/checkbox */
-#popup-root input[type="radio"], #popup-root input[type="checkbox"]{
-  appearance:none; -webkit-appearance:none; -moz-appearance:none; display:none;
-}
-/* ปุ่มชิป */
-#popup-root .chip{ display:inline-block; padding:8px 14px; margin:4px 8px 4px 0; border-radius:999px;
+#popup-root input[type="radio"], #popup-root input[type="checkbox"]{ appearance:none; display:none; }
+#popup-root .chip{ display:inline-flex; align-items:center; gap:8px; padding:8px 14px; margin:4px 8px 4px 0; border-radius:999px;
   font-weight:800; color:#0a3a62; background:#eef6ff; border:1px solid #cfe2ff; cursor:pointer; user-select:none; transition:.15s; }
 #popup-root .chip:hover{ transform:translateY(-1px); }
-#popup-root input:checked + .chip{ background:linear-gradient(180deg,#29ABE2,#4EC5E0); color:#052b47; border-color:#0e5b8a;
-  box-shadow:0 6px 14px rgba(15,98,146,.25); }
+#popup-root input:checked + .chip{ background:linear-gradient(180deg,#29ABE2,#4EC5E0); color:#052b47; border-color:#0e5b8a; box-shadow:0 6px 14px rgba(15,98,146,.25); }
 .option-grid{ display:flex; flex-wrap:wrap; gap:8px 10px; }
+
+.chip .price { font-size:.85rem; font-weight:900; opacity:.85 }
 
 #popup-root .sec-title{ margin:14px 0 8px; font-weight:900; color:#0D4071; letter-spacing:.2px; }
 #popup-root textarea.form-control, #popup-root input.form-control{
   background:#f6fbff; border:2px solid #e2eefc; color:#0b3a61; border-radius:12px;
 }
 #popup-root textarea.form-control:focus, #popup-root input.form-control:focus{ box-shadow:0 0 0 .2rem rgba(41,171,226,.35); border-color:#a6cdf6; }
-
 #popup-root .footer-actions{ border-top:1px dashed #cfe0ff; margin:16px -16px 0; padding:14px 16px; display:flex; gap:12px; }
 #popup-root .btn-cancel{ background:#fff; color:#0D4071; border:2px solid #cfe0ff; font-weight:800; border-radius:12px; padding:.6rem 1rem; }
 #popup-root .btn-save{ flex:1; background:linear-gradient(180deg,#1ea65a,#138b49); color:#fff; border:0; font-weight:900; letter-spacing:.2px; border-radius:12px; padding:.7rem 1rem; box-shadow:0 10px 22px rgba(20,140,75,.28); }
 @media (max-width:860px){ #popup-grid{ grid-template-columns:1fr } #popup-grid .thumb{ height:220px } #popup-root .footer-actions{ flex-direction:column } }
-
-
-
-
-
 </style>
 
 <div id="popup-root">
@@ -142,6 +140,9 @@ body{ background:linear-gradient(135deg,#0D4071,#4173BD); color:#fff; font-famil
           <input type="hidden" name="edit" value="1">
           <input type="hidden" name="old_key" value="<?= htmlspecialchars($old_key,ENT_QUOTES,'UTF-8') ?>">
         <?php endif; ?>
+
+        <!-- ค่าบวกเพิ่มจากท็อปปิง -->
+        <input type="hidden" name="addon_total" id="addon_total" value="0">
 
         <div class="row">
           <div class="col-md-6">
@@ -167,17 +168,36 @@ body{ background:linear-gradient(135deg,#0D4071,#4173BD); color:#fff; font-famil
           <div class="col-md-6">
             <div class="sec-title">ท็อปปิง (เลือกได้หลายอย่าง)</div>
             <div class="option-grid">
-              <?php foreach($toppings as $i=>$tp): $id='tp'.($i+1); $checked=in_array($tp,$selToppings,true)?'checked':''; ?>
-                <input type="checkbox" name="toppings[]" id="<?= $id ?>" value="<?= htmlspecialchars($tp,ENT_QUOTES,'UTF-8') ?>" <?= $checked ?>>
-                <label class="chip" for="<?= $id ?>"><?= htmlspecialchars($tp,ENT_QUOTES,'UTF-8') ?></label>
+              <?php foreach($toppings as $i=>$tp):
+                $id='tp'.($i+1);
+                $checked=in_array($tp['name'],$selToppings,true)?'checked':'';
+                $p = (float)$tp['base_price'];
+              ?>
+                <input
+  type="checkbox"
+  name="toppings[]"
+  id="<?= $id ?>"
+  value="<?= (int)$tp['topping_id'] ?>"
+  data-title="<?= htmlspecialchars($tp['name'],ENT_QUOTES,'UTF-8') ?>"
+  data-price="<?= htmlspecialchars(number_format($p,2,'.',''),ENT_QUOTES,'UTF-8') ?>"
+  <?= $checked ?>
+>
+
+                <label class="chip" for="<?= $id ?>">
+                  <span><?= htmlspecialchars($tp['name'],ENT_QUOTES,'UTF-8') ?></span>
+                  <?php if($p>0): ?><span class="price">+<?= money_fmt($p) ?> ฿</span><?php endif; ?>
+                </label>
               <?php endforeach; ?>
             </div>
 
             <div class="sec-title">หมายเหตุเพิ่มเติม</div>
             <textarea class="form-control" name="note_free" rows="3" placeholder="เช่น ไม่ใส่ฝา งดหลอด ฯลฯ"><?= htmlspecialchars($selFree,ENT_QUOTES,'UTF-8') ?></textarea>
 
-            <div class="sec-title">จำนวน</div>
-            <input type="number" class="form-control" name="qty" value="<?= (int)$currentQty ?>" min="1" style="max-width:160px">
+            <div class="sec-title d-flex align-items-center justify-content-between">
+              <span>จำนวน</span>
+              <small id="calc_total_hint" style="font-weight:900;color:#0D4071;opacity:.9"></small>
+            </div>
+            <input type="number" class="form-control" name="qty" id="qty" value="<?= (int)$currentQty ?>" min="1" style="max-width:160px">
           </div>
         </div>
 
@@ -196,21 +216,43 @@ body{ background:linear-gradient(135deg,#0D4071,#4173BD); color:#fff; font-famil
 </div>
 
 <script>
-// เผื่อเปิดแบบหน้าเดี่ยว: รวม note ก่อน submit
-document.getElementById('menuForm')?.addEventListener('submit', function(){
+(function(){
   const root = document;
-  const pick = name => (root.querySelector(`input[name="${name}"]:checked`)||{}).value || '';
-  const parts = [];
-  const size = pick('size'), sweet = pick('sweet'), ice = pick('ice');
-  if(size)  parts.push('ขนาด: '+size);
-  if(sweet) parts.push('หวาน: '+sweet);
-  if(ice)   parts.push('น้ำแข็ง: '+ice);
-  const tops = Array.from(root.querySelectorAll('input[name="toppings[]"]:checked')).map(x=>x.value);
-  const free = (root.querySelector('textarea[name="note_free"]')?.value || '').trim();
-  if(tops.length) parts.push('ท็อปปิง: '+tops.join(', '));
-  if(free) parts.push('หมายเหตุ: '+free);
-  (root.getElementById('note')||{}).value = parts.join(' | ');
-});
+  const basePrice = <?= json_encode((float)$menu['price']) ?>;
+  const money = n => Number(n).toFixed(2);
+
+  function collectNoteAndAddon(){
+    const pick = name => (root.querySelector(`input[name="${name}"]:checked`)||{}).value || '';
+    const parts = [];
+    const size = pick('size'), sweet = pick('sweet'), ice = pick('ice');
+    if(size)  parts.push('ขนาด: '+size);
+    if(sweet) parts.push('หวาน: '+sweet);
+    if(ice)   parts.push('น้ำแข็ง: '+ice);
+    const tops = Array.from(root.querySelectorAll('input[name="toppings[]"]:checked'));
+    const free = (root.querySelector('textarea[name="note_free"]')?.value || '').trim();
+    if(tops.length) parts.push('ท็อปปิง: '+tops.map(x=>x.dataset.title || x.value).join(', '));
+    if(free) parts.push('หมายเหตุ: '+free);
+
+    // รวมราคา topping
+    const addon = tops.reduce((s, el)=> s + parseFloat(el.dataset.price||'0'), 0);
+    (root.getElementById('note')||{}).value = parts.join(' | ');
+    (root.getElementById('addon_total')||{}).value = money(addon);
+
+    // hint แสดงยอดต่อแก้ว
+    const qty = Math.max(1, parseInt((root.getElementById('qty')||{}).value||'1', 10));
+    const perCup = basePrice + addon;
+    const hint = root.getElementById('calc_total_hint');
+    if(hint){ hint.textContent = `ต่อแก้ว: ${money(perCup)} ฿  •  รวม ~ ${money(perCup*qty)} ฿`; }
+  }
+
+  // อัปเดตทุกครั้งที่เลือก/เปลี่ยน
+  root.querySelectorAll('input[name="toppings[]"]').forEach(el=> el.addEventListener('change', collectNoteAndAddon));
+  root.getElementById('qty')?.addEventListener('input', collectNoteAndAddon);
+  root.getElementById('menuForm')?.addEventListener('submit', collectNoteAndAddon);
+
+  // init
+  collectNoteAndAddon();
+})();
 </script>
 
 <?php if (!$isPopup): ?>

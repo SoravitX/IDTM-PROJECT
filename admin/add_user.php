@@ -23,12 +23,16 @@ $roles = [
   'barista' => 'บาริสต้า'
 ];
 
+// ตัวเลือกสถานะชั่วโมง
+$status_options = ['ชั่วโมงทุน','ชั่วโมงปกติ'];
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   // map field จากฟอร์ม → ตัวแปร
-  $student_ID = trim((string)($_POST['student_id'] ?? ''));   // ← ชื่อ input คือ student_id (ตัวเล็ก) แต่คอลัมน์ DB คือ student_ID
+  $student_ID = trim((string)($_POST['student_id'] ?? ''));   // ชื่อ input: student_id / คอลัมน์ DB: student_ID
   $username   = trim((string)($_POST['username'] ?? ''));
   $name       = trim((string)($_POST['name'] ?? ''));
   $role       = (string)($_POST['role'] ?? 'employee');
+  $status     = (string)($_POST['status'] ?? 'ชั่วโมงปกติ');
   $pass       = (string)($_POST['password'] ?? '');
   $pass2      = (string)($_POST['password2'] ?? '');
 
@@ -39,6 +43,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $err = 'รหัสผ่านไม่ตรงกัน';
   } elseif (!isset($roles[$role])) {
     $err = 'บทบาทไม่ถูกต้อง';
+  } elseif (!in_array($status, $status_options, true)) {
+    $err = 'สถานะไม่ถูกต้อง';
   } else {
     // ตรวจซ้ำ username
     $stmt = $conn->prepare("SELECT 1 FROM users WHERE username=? LIMIT 1");
@@ -47,7 +53,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $dupUser = (bool)$stmt->get_result()->fetch_row();
     $stmt->close();
 
-    // (ทางเลือก) ตรวจซ้ำ student_ID ด้วย
+    // ตรวจซ้ำ student_ID
     $stmt = $conn->prepare("SELECT 1 FROM users WHERE student_ID=? LIMIT 1");
     $stmt->bind_param("s", $student_ID);
     $stmt->execute();
@@ -61,12 +67,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } else {
       $hash = password_hash($pass, PASSWORD_DEFAULT);
 
-      // INSERT ให้ตรงคอลัมน์จริง: username, password, student_ID, name, role
+      // ✅ INSERT ใส่คอลัมน์ status ด้วย
       $stmt = $conn->prepare("
-        INSERT INTO users (username, password, student_ID, name, role)
-        VALUES (?, ?, ?, ?, ?)
+        INSERT INTO users (username, password, student_ID, name, role, status)
+        VALUES (?, ?, ?, ?, ?, ?)
       ");
-      $stmt->bind_param("sssss", $username, $hash, $student_ID, $name, $role);
+      $stmt->bind_param("ssssss", $username, $hash, $student_ID, $name, $role, $status);
       $stmt->execute();
       $stmt->close();
 
@@ -129,11 +135,13 @@ body{ background:linear-gradient(135deg,var(--psu-deep),var(--psu-ocean)); color
           <input type="text" name="username" class="form-control" required
                  value="<?= htmlspecialchars($_POST['username'] ?? '', ENT_QUOTES,'UTF-8') ?>">
         </div>
+
         <div class="form-group col-md-6">
           <label>ชื่อ - สกุล ที่แสดง <span class="text-danger">*</span></label>
           <input type="text" name="name" class="form-control" required
                  value="<?= htmlspecialchars($_POST['name'] ?? '', ENT_QUOTES,'UTF-8') ?>">
         </div>
+
         <div class="form-group col-md-6">
           <label>บทบาท (role)</label>
           <select name="role" class="custom-select">
@@ -141,6 +149,19 @@ body{ background:linear-gradient(135deg,var(--psu-deep),var(--psu-ocean)); color
               <option value="<?= htmlspecialchars($k,ENT_QUOTES) ?>"
                 <?= (($_POST['role'] ?? 'employee')===$k)?'selected':'' ?>>
                 <?= htmlspecialchars($v,ENT_QUOTES) ?> (<?= htmlspecialchars($k,ENT_QUOTES) ?>)
+              </option>
+            <?php endforeach; ?>
+          </select>
+        </div>
+
+        <!-- ✅ ฟิลด์สถานะชั่วโมง -->
+        <div class="form-group col-md-6">
+          <label>สถานะชั่วโมง</label>
+          <select name="status" class="custom-select">
+            <?php foreach ($status_options as $opt): ?>
+              <option value="<?= htmlspecialchars($opt,ENT_QUOTES,'UTF-8') ?>"
+                <?= (($_POST['status'] ?? 'ชั่วโมงปกติ')===$opt)?'selected':'' ?>>
+                <?= htmlspecialchars($opt,ENT_QUOTES,'UTF-8') ?>
               </option>
             <?php endforeach; ?>
           </select>

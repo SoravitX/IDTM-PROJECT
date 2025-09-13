@@ -19,7 +19,8 @@ $id  = (int)($_GET['id'] ?? $_POST['id'] ?? 0);
 if ($id <= 0) { header('Location: users_list.php'); exit; }
 
 // ----- โหลดข้อมูลเดิม -----
-$stmt = $conn->prepare("SELECT user_id, username, student_ID, name, role FROM users WHERE user_id=?");
+// ✅ ดึง status มาด้วย
+$stmt = $conn->prepare("SELECT user_id, username, student_ID, name, role, status FROM users WHERE user_id=?");
 $stmt->bind_param("i", $id);
 $stmt->execute();
 $user = $stmt->get_result()->fetch_assoc();
@@ -35,11 +36,15 @@ $roles = [
   'barista' => 'บาริสต้า'
 ];
 
+// ตัวเลือกสถานะชั่วโมง
+$status_options = ['ชั่วโมงทุน','ชั่วโมงปกติ'];
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   $student_ID = trim((string)($_POST['student_id'] ?? ''));
   $username   = trim((string)($_POST['username'] ?? ''));
   $name       = trim((string)($_POST['name'] ?? ''));
   $role       = (string)($_POST['role'] ?? 'employee');
+  $status     = (string)($_POST['status'] ?? 'ชั่วโมงปกติ'); // ✅ รับสถานะจากฟอร์ม
   $pass       = (string)($_POST['password'] ?? '');
   $pass2      = (string)($_POST['password2'] ?? '');
 
@@ -48,6 +53,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $err = 'กรอกข้อมูลให้ครบ';
   } elseif (!isset($roles[$role])) {
     $err = 'บทบาทไม่ถูกต้อง';
+  } elseif (!in_array($status, $status_options, true)) {
+    $err = 'สถานะไม่ถูกต้อง';
   } elseif ($pass !== '' && $pass !== $pass2) {
     $err = 'รหัสผ่านใหม่ไม่ตรงกัน';
   } else {
@@ -73,19 +80,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       // อัปเดต
       if ($pass !== '') {
         $hash = password_hash($pass, PASSWORD_DEFAULT);
+        // ✅ อัปเดต status ด้วย
         $stmt = $conn->prepare("
           UPDATE users
-          SET username=?, student_ID=?, name=?, role=?, password=?
+          SET username=?, student_ID=?, name=?, role=?, status=?, password=?
           WHERE user_id=?
         ");
-        $stmt->bind_param("sssssi", $username, $student_ID, $name, $role, $hash, $id);
+        $stmt->bind_param("ssssssi", $username, $student_ID, $name, $role, $status, $hash, $id);
       } else {
         $stmt = $conn->prepare("
           UPDATE users
-          SET username=?, student_ID=?, name=?, role=?
+          SET username=?, student_ID=?, name=?, role=?, status=?
           WHERE user_id=?
         ");
-        $stmt->bind_param("ssssi", $username, $student_ID, $name, $role, $id);
+        $stmt->bind_param("sssssi", $username, $student_ID, $name, $role, $status, $id);
       }
       $stmt->execute();
       $stmt->close();
@@ -100,6 +108,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   $user['student_ID'] = $student_ID;
   $user['name']       = $name;
   $user['role']       = $role;
+  $user['status']     = $status;
 }
 ?>
 <!doctype html>
@@ -173,6 +182,18 @@ body{ background:linear-gradient(135deg,var(--psu-deep),var(--psu-ocean)); color
             <?php foreach($roles as $k=>$v): ?>
               <option value="<?= h($k) ?>" <?= ($user['role']===$k)?'selected':'' ?>>
                 <?= h($v) ?> (<?= h($k) ?>)
+              </option>
+            <?php endforeach; ?>
+          </select>
+        </div>
+
+        <!-- ✅ สถานะชั่วโมง -->
+        <div class="form-group col-md-6">
+          <label>สถานะชั่วโมง</label>
+          <select name="status" class="custom-select">
+            <?php foreach ($status_options as $opt): ?>
+              <option value="<?= h($opt) ?>" <?= ($user['status'] === $opt ? 'selected' : '') ?>>
+                <?= h($opt) ?>
               </option>
             <?php endforeach; ?>
           </select>

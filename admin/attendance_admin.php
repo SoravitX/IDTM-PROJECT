@@ -1,16 +1,23 @@
 <?php
-// admin/attendance_admin.php — หน้าผู้ดูแลดูเวลาทำงานพนักงาน
+// admin/attendance_admin.php — หน้าผู้ดูแลดูเวลาทำงานพนักงาน (ซ่อนบาง role + แสดงชื่อ-รหัสนศ.)
+// - ซ่อน role: หน้าร้าน=employee, หลังร้าน=back  (ปรับได้ที่ $HIDE_ROLES)
+// - ตาราง/สรุป แสดง "ชื่อ-นามสกุล" + "รหัสนักศึกษา" (แทน username)
+// - แสดงคอลัมน์สถานะผู้ใช้ (ชั่วโมงทุน/ชั่วโมงปกติ)
+
 declare(strict_types=1);
 session_start();
 if (empty($_SESSION['uid'])) { header("Location: ../index.php"); exit; }
-// ถ้าคุณมี role ใน session และต้องจำกัดเฉพาะ admin ให้ปลดคอมเมนต์บรรทัดถัดไป
+// ถ้าต้องการบังคับเฉพาะ admin ให้เปิดบรรทัดนี้
 // if (empty($_SESSION['role']) || $_SESSION['role'] !== 'admin') { header("Location: ../index.php"); exit; }
 
 require __DIR__ . '/../db.php';
 $conn->set_charset('utf8mb4');
 
+// ===== Config: ซ่อน role ไหนบ้าง =====
+$HIDE_ROLES = ['employee','back']; // 'employee' = หน้าร้าน, 'back' = หลังร้าน
+
 function h($s){ return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
-function fmtHM(int $sec): string { // แปลงวินาที -> H:mm
+function fmtHM(int $sec): string { // วินาที -> H:mm
   $h = intdiv($sec, 3600);
   $m = intdiv($sec % 3600, 60);
   return $h . ':' . str_pad((string)$m, 2, '0', STR_PAD_LEFT) . ' ชม.';
@@ -29,21 +36,28 @@ $first_of_month = date('Y-m-01');
 
 $start_date = isset($_GET['start']) && $_GET['start'] !== '' ? $_GET['start'] : $first_of_month;
 $end_date   = isset($_GET['end'])   && $_GET['end']   !== '' ? $_GET['end']   : $today;
-// ค้นหาตามชื่อ/username (อิสระ)
-$q = trim((string)($_GET['q'] ?? ''));
-// เลือก user รายคน (optional)
-$user_filter = isset($_GET['user_id']) ? (int)$_GET['user_id'] : 0;
+$q = trim((string)($_GET['q'] ?? ''));                // ค้นหา ชื่อ/username
+$user_filter = isset($_GET['user_id']) ? (int)$_GET['user_id'] : 0; // เลือก user เฉพาะคน
 
-// --------- ดึงรายชื่อพนักงานสำหรับ dropdown ---------
+// --------- ดึงรายชื่อพนักงานสำหรับ dropdown (excluding hidden roles) ---------
 $users = [];
-$ru = $conn->query("SELECT user_id, username, name FROM users ORDER BY username");
-while ($u = $ru->fetch_assoc()) $users[] = $u;
-$ru->close();
+if (!empty($HIDE_ROLES)) {
+  $place = implode(',', array_fill(0, count($HIDE_ROLES), '?'));
+  $types = str_repeat('s', count($HIDE_ROLES));
+  $stmtU = $conn->prepare("SELECT user_id, username, name, student_ID, role FROM users WHERE role NOT IN ($place) ORDER BY name");
+  $stmtU->bind_param($types, ...$HIDE_ROLES);
+} else {
+  $stmtU = $conn->prepare("SELECT user_id, username, name, student_ID, role FROM users ORDER BY name");
+}
+$stmtU->execute();
+$resU = $stmtU->get_result();
+while ($u = $resU->fetch_assoc()) $users[] = $u;
+$stmtU->close();
 
-// --------- ดึงบันทึกเวลาตามตัวกรอง ---------
+// --------- ดึงบันทึกเวลาตามตัวกรอง (excluding hidden roles) ---------
 $sql = "
   SELECT a.attendance_id, a.user_id, a.date_in, a.time_in, a.date_out, a.time_out,
-         u.username, u.name
+         u.username, u.name, u.student_ID, u.role, u.status
   FROM attendance a
   JOIN users u ON u.user_id = a.user_id
   WHERE a.date_in >= ? AND a.date_in <= ?
@@ -51,12 +65,17 @@ $sql = "
 $params = [$start_date, $end_date];
 $types  = 'ss';
 
+if (!empty($HIDE_ROLES)) {
+  $sql .= " AND u.role NOT IN (" . implode(',', array_fill(0, count($HIDE_ROLES), '?')) . ")";
+  $types .= str_repeat('s', count($HIDE_ROLES));
+  $params = array_merge($params, $HIDE_ROLES);
+}
 if ($user_filter > 0) { $sql .= " AND a.user_id = ?"; $params[] = $user_filter; $types .= 'i'; }
 if ($q !== '') {
   $sql .= " AND (u.username LIKE ? OR u.name LIKE ?)";
   $kw = "%$q%"; $params[] = $kw; $params[] = $kw; $types .= 'ss';
 }
-$sql .= " ORDER BY u.username, a.attendance_id DESC";
+$sql .= " ORDER BY u.name, a.attendance_id DESC";
 
 $stmt = $conn->prepare($sql);
 $stmt->bind_param($types, ...$params);
@@ -68,23 +87,28 @@ while ($r = $res->fetch_assoc()) $rows[] = $r;
 $stmt->close();
 
 // --------- สรุปรวมเวลา/คน และรวมทั้งหมด ---------
-$by_user = []; // user_id => ['username','name','sec'=>total_seconds]
+$by_user = []; // user_id => ['name','student_ID','status','sec'=>total_seconds]
 $total_sec = 0;
 foreach ($rows as $r) {
   $sec = diff_seconds($r['date_in'], $r['time_in'], $r['date_out'], $r['time_out']);
   if ($sec !== null) {
     $uid = (int)$r['user_id'];
     if (!isset($by_user[$uid])) {
-      $by_user[$uid] = ['username'=>$r['username'], 'name'=>$r['name'], 'sec'=>0];
+      $by_user[$uid] = [
+        'name'       => $r['name'],
+        'student_ID' => $r['student_ID'],
+        'status'     => $r['status'] ?? '',
+        'sec'        => 0
+      ];
     }
     $by_user[$uid]['sec'] += $sec;
     $total_sec += $sec;
   }
 }
 
-// จัดเรียงรวมต่อคน ตาม username
+// จัดเรียงรวมต่อคน ตามชื่อ
 uksort($by_user, function($a,$b) use($by_user){
-  return strnatcasecmp((string)$by_user[$a]['username'], (string)$by_user[$b]['username']);
+  return strnatcasecmp((string)$by_user[$a]['name'], (string)$by_user[$b]['name']);
 });
 ?>
 <!doctype html>
@@ -118,6 +142,7 @@ body{background:linear-gradient(135deg,var(--psu-deep),var(--psu-ocean));color:#
 .table td,.table th{border-color:#e7eefc!important}
 .subtle{color:#dbeafe}
 .summary-card{background:#fff; color:var(--ink); border:1px solid #e7e9f2; border-radius:14px; padding:10px 14px;}
+.badge-role{background:#eaf4ff; color:#0D4071; border:1px solid #cfe2ff; border-radius:999px; padding:.15rem .6rem; font-weight:800}
 </style>
 </head>
 <body>
@@ -125,7 +150,7 @@ body{background:linear-gradient(135deg,var(--psu-deep),var(--psu-ocean));color:#
   <div class="topbar d-flex justify-content-between align-items-center mb-3">
     <div>
       <div class="h5 m-0 font-weight-bold">Admin • เวลาทำงานพนักงาน</div>
-      <small class="subtle">ดูบันทึก attendance ตามช่วงเวลา และรวมชั่วโมงต่อคน</small>
+      <small class="subtle">ซ่อนตำแหน่ง: <?= h(implode(', ', $HIDE_ROLES)) ?> • แสดงชื่อ-นามสกุล + รหัสนักศึกษา</small>
     </div>
     <div>
       <a href="../SelectRole/role.php" class="btn btn-sm btn-outline-light mr-2">หน้าหลัก</a>
@@ -151,7 +176,7 @@ body{background:linear-gradient(135deg,var(--psu-deep),var(--psu-ocean));color:#
           <option value="0">— ทั้งหมด —</option>
           <?php foreach($users as $u): ?>
             <option value="<?= (int)$u['user_id'] ?>" <?= $user_filter===(int)$u['user_id']?'selected':'' ?>>
-              <?= h($u['username'].' ('.$u['name'].')') ?>
+              <?= h($u['name'].' • รหัส '.$u['student_ID']) ?>
             </option>
           <?php endforeach; ?>
         </select>
@@ -179,11 +204,10 @@ body{background:linear-gradient(135deg,var(--psu-deep),var(--psu-ocean));color:#
         <?php if($q!==''): ?>
           <span class="badge-chip ml-2">ค้นหา: <?= h($q) ?></span>
         <?php endif; ?>
-        <?php if($user_filter>0): ?>
-          <?php
-            $uText = '';
-            foreach($users as $u){ if((int)$u['user_id']===$user_filter){ $uText=$u['username'].' ('.$u['name'].')'; break; } }
-          ?>
+        <?php if($user_filter>0):
+          $uText = '';
+          foreach($users as $u){ if((int)$u['user_id']===$user_filter){ $uText = $u['name'].' • รหัส '.$u['student_ID']; break; } }
+        ?>
           <span class="badge-chip ml-2">พนักงาน: <?= h($uText) ?></span>
         <?php endif; ?>
       </div>
@@ -201,19 +225,21 @@ body{background:linear-gradient(135deg,var(--psu-deep),var(--psu-ocean));color:#
       <table class="table table-sm mb-0">
         <thead>
           <tr>
-            <th style="width:220px">พนักงาน</th>
-            <th style="width:160px">Username</th>
+            <th style="width:260px">ชื่อ - นามสกุล</th>
+            <th style="width:160px">รหัสนักศึกษา</th>
+            <th style="width:160px">สถานะผู้ใช้</th>
             <th style="width:160px" class="text-right">รวมชั่วโมง</th>
           </tr>
         </thead>
         <tbody>
         <?php if(empty($by_user)): ?>
-          <tr><td colspan="3" class="text-center text-muted">ไม่พบข้อมูล</td></tr>
+          <tr><td colspan="4" class="text-center text-muted">ไม่พบข้อมูล</td></tr>
         <?php else: ?>
           <?php foreach($by_user as $uid => $u): ?>
             <tr>
               <td><?= h($u['name']) ?></td>
-              <td><?= h($u['username']) ?></td>
+              <td><?= h($u['student_ID']) ?></td>
+              <td><span class="badge badge-info p-2"><?= h($u['status'] ?: '-') ?></span></td>
               <td class="text-right"><strong><?= fmtHM($u['sec']) ?></strong></td>
             </tr>
           <?php endforeach; ?>
@@ -232,18 +258,20 @@ body{background:linear-gradient(135deg,var(--psu-deep),var(--psu-ocean));color:#
       <table class="table table-sm mb-0">
         <thead>
           <tr>
-            <th style="width:200px">พนักงาน</th>
-            <th style="width:120px">วันที่เข้า</th>
+            <th style="width:260px">ชื่อ - นามสกุล</th>
+            <th style="width:160px">รหัสนักศึกษา</th>
+            <th style="width:140px">วันที่เข้า</th>
             <th style="width:110px">เวลาเข้า</th>
-            <th style="width:120px">วันที่ออก</th>
+            <th style="width:140px">วันที่ออก</th>
             <th style="width:110px">เวลาออก</th>
             <th style="width:130px" class="text-right">ชั่วโมงรวม</th>
-            <th style="width:120px">สถานะ</th>
+            <th style="width:140px">สถานะผู้ใช้</th>
+            <th style="width:120px">สถานะงาน</th>
           </tr>
         </thead>
         <tbody>
           <?php if(empty($rows)): ?>
-            <tr><td colspan="7" class="text-center text-muted">ไม่พบข้อมูล</td></tr>
+            <tr><td colspan="9" class="text-center text-muted">ไม่พบข้อมูล</td></tr>
           <?php else: ?>
             <?php foreach($rows as $r):
               $sec = diff_seconds($r['date_in'],$r['time_in'],$r['date_out'],$r['time_out']);
@@ -251,12 +279,14 @@ body{background:linear-gradient(135deg,var(--psu-deep),var(--psu-ocean));color:#
               $open = (trim($r['time_out'])==='00:00:00');
             ?>
               <tr>
-                <td><?= h($r['name']).' ('.h($r['username']).')' ?></td>
+                <td><?= h($r['name']) ?></td>
+                <td><?= h($r['student_ID']) ?></td>
                 <td><?= h($r['date_in']) ?></td>
                 <td><?= h($r['time_in']) ?></td>
                 <td><?= h($r['date_out']) ?></td>
                 <td><?= h($r['time_out']) ?></td>
                 <td class="text-right"><?= h($dur) ?></td>
+                <td><span class="badge badge-info p-2"><?= h($r['status'] ?: '-') ?></span></td>
                 <td>
                   <?php if($open): ?>
                     <span class="badge badge-warning">กำลังเข้างาน</span>
