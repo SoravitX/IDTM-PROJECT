@@ -3,6 +3,7 @@
 // + จำกัดช่วงเช็คอิน (เวลาไทยตรงกัน PHP/MySQL)
 // + Auto checkout หลังเลิกงาน 5 นาที
 // + Toggle ซ่อน/แสดง "บันทึกล่าสุด"
+// + UI Theme: Teal-Graphite (เข้ม อ่านง่าย)
 declare(strict_types=1);
 session_start();
 if (empty($_SESSION['uid'])) { header("Location: ../index.php"); exit; }
@@ -24,19 +25,16 @@ const AUTO_CO_GRACE_MIN = 5; // ปิดงานอัตโนมัติห
 
 /** นิยามรอบงาน (ช่วงเช็คอิน + เวลาเลิกงาน) */
 function work_windows(): array {
-  // label ใช้เพื่อแสดงผล
   return [
     ['start'=>'09:00','end'=>'09:30','end_work'=>'12:00','label'=>'เช้า (09:00–09:30 • เลิก 12:00)'],
     ['start'=>'13:00','end'=>'13:30','end_work'=>'17:00','label'=>'บ่าย (13:00–13:30 • เลิก 17:00)'],
   ];
 }
-/** ช่วงที่อนุญาตเช็คอิน */
 function allowed_windows(): array {
   return array_map(fn($x)=>['start'=>$x['start'],'end'=>$x['end'],'label'=>preg_replace('/ • เลิก .+$/','',$x['label'])], work_windows());
 }
 function h($s){ return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
 
-/** ตอนนี้อยู่ในช่วงเช็คอินหรือไม่ */
 function is_within_windows(DateTime $now): bool {
   foreach (allowed_windows() as $w) {
     $s = DateTime::createFromFormat('H:i', $w['start'], new DateTimeZone('Asia/Bangkok'));
@@ -46,7 +44,6 @@ function is_within_windows(DateTime $now): bool {
   }
   return false;
 }
-/** ป้ายช่วงปัจจุบัน */
 function current_window_label(DateTime $now): string {
   foreach (allowed_windows() as $w) {
     $s = DateTime::createFromFormat('H:i', $w['start'], new DateTimeZone('Asia/Bangkok'));
@@ -56,12 +53,10 @@ function current_window_label(DateTime $now): string {
   }
   return 'ขณะนี้อยู่นอกช่วงเวลาเช็คอิน';
 }
-/** สตริงอธิบายช่วงทั้งหมด */
 function windows_text(): string {
   $labels = array_map(fn($x)=>$x['label'], allowed_windows());
   return 'เช็คอินได้เฉพาะ: '.implode(' และ ', $labels);
 }
-/** ข้อความช่วงถัดไปของวันนี้ (ถ้ามี) */
 function next_window_message(DateTime $now): string {
   foreach (allowed_windows() as $w) {
     $s = DateTime::createFromFormat('H:i', $w['start'], new DateTimeZone('Asia/Bangkok'));
@@ -70,7 +65,6 @@ function next_window_message(DateTime $now): string {
   }
   return '';
 }
-/** หาว่าการเช็คอินครั้งนี้อยู่รอบไหน และเวลาเลิกงานคือกี่โมงของวันเดียวกัน */
 function resolve_end_work(string $date_in, string $time_in): ?DateTime {
   $checkin = DateTime::createFromFormat('Y-m-d H:i:s', $date_in.' '.$time_in, new DateTimeZone('Asia/Bangkok'));
   if (!$checkin) return null;
@@ -84,11 +78,9 @@ function resolve_end_work(string $date_in, string $time_in): ?DateTime {
       return $endWork;
     }
   }
-  // ถ้าเช็คอินนอกนิยามข้างบน ให้ถือว่าเลิกงานวันนี้ 23:59
   $fallback = DateTime::createFromFormat('Y-m-d H:i', $date_in.' 23:59', new DateTimeZone('Asia/Bangkok'));
   return $fallback ?: null;
 }
-/** ระยะเวลาแบบ H:mm (รวมวัน); ยังไม่ปิดงานคืน "-" */
 function calc_duration($date_in, $time_in, $date_out, $time_out): string {
   if (trim((string)$time_out) === '00:00:00') return '-';
   try{
@@ -135,14 +127,13 @@ $stmt->execute();
 $open = $stmt->get_result()->fetch_assoc();
 $stmt->close();
 
-/* ==== Auto checkout ถ้าถึงเวลาเลิกงาน + 5 นาที ==== */
+/* ==== Auto checkout ==== */
 if ($open) {
-  $endWork = resolve_end_work($open['date_in'], $open['time_in']);  // เวลาเลิกงานตามรอบ
+  $endWork = resolve_end_work($open['date_in'], $open['time_in']);
   if ($endWork) {
-    $cutoff = (clone $endWork)->modify('+'.AUTO_CO_GRACE_MIN.' minutes'); // เลยเลิกงานกี่นาทีถึงจะปิดเอง
+    $cutoff = (clone $endWork)->modify('+'.AUTO_CO_GRACE_MIN.' minutes');
     if ($nowPhp >= $cutoff) {
       $aid = (int)$open['attendance_id'];
-      // ปิดงานให้ ณ เวลา "เลิกงาน" (ไม่ใช่ตอน +5 นาที)
       $date_out = $endWork->format('Y-m-d');
       $time_out = $endWork->format('H:i:s');
       $stmt = $conn->prepare("
@@ -153,16 +144,13 @@ if ($open) {
       $stmt->bind_param('ssi', $date_out, $time_out, $aid);
       $stmt->execute();
       $stmt->close();
-      // รีเฟรชสถานะเปิดงาน
       $open = null;
     }
   }
 }
 
-/* ==== จัดการ POST (checkin / checkout) ==== */
-$msg = '';
-$err = '';
-
+/* ==== POST ==== */
+$msg = ''; $err = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
   $action = $_POST['action'];
 
@@ -203,7 +191,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     }
   }
 }
-
 if (isset($_GET['msg'])) {
   if ($_GET['msg'] === '1') $msg = 'เช็คอินเรียบร้อย';
   if ($_GET['msg'] === '2') $msg = 'เช็คเอาท์เรียบร้อย';
@@ -232,42 +219,172 @@ $stmt->close();
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="stylesheet"
  href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+<link rel="stylesheet"
+ href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
+
 <style>
+/* ===== Teal-Graphite Theme Tokens ===== */
 :root{
-  --psu-deep:#0D4071; --psu-ocean:#4173BD; --psu-andaman:#0094B3;
-  --psu-sky:#29ABE2;  --psu-river:#4EC5E0; --psu-sritrang:#BBB4D8;
-  --ok:#2e7d32; --warn:#f0ad4e; --bad:#d9534f;
+  --text-strong:#F4F7F8;
+  --text-normal:#E6EBEE;
+  --text-muted:#B9C2C9;
+
+  --bg-grad1:#222831;     /* background */
+  --bg-grad2:#393E46;
+
+  --surface:#1C2228;      /* cards */
+  --surface-2:#232A31;
+  --surface-3:#2B323A;
+
+  --ink:#F4F7F8;
+  --ink-muted:#CFEAED;
+
+  --brand-900:#EEEEEE;
+  --brand-700:#BFC6CC;
+  --brand-500:#00ADB5;    /* accent */
+  --brand-400:#27C8CF;
+  --brand-300:#73E2E6;
+
+  --ok:#2ecc71; --danger:#e53935;
+
+  --shadow-lg:0 22px 66px rgba(0,0,0,.55);
+  --shadow:   0 14px 32px rgba(0,0,0,.42);
+
+  --ring:#73E2E6;
+  --radius:14px;
 }
-body{ background:linear-gradient(135deg,var(--psu-deep),var(--psu-ocean)); color:#fff; font-family:"Segoe UI",Tahoma,sans-serif; }
+
+html,body{height:100%}
+body{
+  margin:0; color:var(--ink); font-family:"Segoe UI",Tahoma,Arial,sans-serif;
+  background:linear-gradient(135deg,var(--bg-grad1),var(--bg-grad2));
+}
 .wrap{max-width:980px;margin:28px auto;padding:0 14px}
-.headbar{ background:rgba(13,64,113,.92); border:1px solid rgba(187,180,216,.25);
-  border-radius:14px; padding:12px 16px; box-shadow:0 8px 20px rgba(0,0,0,.18); }
-.cardx{ background:rgba(255,255,255,.09); border:1px solid var(--psu-sritrang);
-  border-radius:16px; box-shadow:0 12px 26px rgba(0,0,0,.22); }
-.stat{ background:#fff; color:#0D4071; border-radius:14px; padding:16px;
-  display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; }
-.badge-open{background:var(--warn); color:#212529; font-weight:800}
-.badge-close{background:var(--ok); color:#fff; font-weight:800}
-.btn-ci{background:var(--psu-andaman); border-color:#063d63; font-weight:800}
-.btn-ci:hover{background:var(--psu-sky); color:#063d63}
-.btn-co{background:#e85f5f; border-color:#a73737; font-weight:800}
-.table-logs{background:#fff; color:#0b2746; border-radius:12px; overflow:hidden}
-.table-logs thead th{ background:#f5f9ff; color:#06345c; border-bottom:2px solid #e7eefc; font-weight:800; }
-.table-logs td,.table-logs th{ border-color:#e7eefc!important; }
-.hint{ background:#eaf4ff; color:#0D4071; border:1px solid #bcd6f3; border-radius:12px;
-  padding:12px 14px; margin-bottom:12px; font-weight:700; }
-.debug{ background:#fff4e5; color:#663c00; border:1px dashed #f0ad4e; border-radius:10px; padding:8px 12px; font-size:.9rem; }
-.badge-ht{ display:inline-block; padding:.2rem .5rem; border-radius:999px; font-weight:800; }
-.badge-ht-normal{ background:#e9f5ff; color:#0D4071; border:1px solid #cfe2ff; }
-.badge-ht-fund{ background:#eaf7ea; color:#1b5e20; border:1px solid #cfe9cf; }
-.toggle-btn{border-radius:999px;font-weight:800}
+
+/* ===== Top header ===== */
+.headbar{
+  background:color-mix(in oklab, var(--surface), white 6%);
+  border:1px solid color-mix(in oklab, var(--brand-700), black 20%);
+  border-radius:var(--radius);
+  padding:12px 16px; box-shadow:0 8px 20px rgba(0,0,0,.35);
+}
+.headbar .h5{letter-spacing:.2px}
+.headbar .btn{border-radius:12px;font-weight:800}
+
+/* ===== Info chip ===== */
+.hint{
+  background:color-mix(in oklab, var(--surface-2), white 6%);
+  color:var(--text-normal);
+  border:1px solid color-mix(in oklab, var(--brand-700), black 22%);
+  border-radius:var(--radius); padding:12px 14px; margin-bottom:12px; font-weight:700;
+  box-shadow:0 8px 18px rgba(0,0,0,.25);
+}
+
+/* ===== Server time ===== */
+.debug{
+  background:#fff4e5; color:#663c00; border:1px dashed #f0ad4e;
+  border-radius:10px; padding:8px 12px; font-size:.9rem;
+}
+
+/* ===== Card ===== */
+.cardx{
+  background:color-mix(in oklab, var(--surface), white 6%);
+  border:1px solid color-mix(in oklab, var(--brand-700), black 22%);
+  border-radius:16px; box-shadow:var(--shadow);
+}
+
+/* ===== Status bar ===== */
+.stat{
+  background:var(--surface-2);
+  color:var(--ink);
+  border:1px solid color-mix(in oklab, var(--brand-700), black 22%);
+  border-radius:16px; padding:16px;
+  display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap;
+  box-shadow:0 8px 24px rgba(0,0,0,.25);
+}
+.badge-open{
+  background:#FFE08A; color:#2b1a00; font-weight:900; border-radius:999px; padding:.35rem .6rem
+}
+.badge-close{
+  background: color-mix(in oklab, var(--ok), black 10%);
+  color:#041c10; font-weight:900; border-radius:999px; padding:.35rem .6rem;
+}
+
+.badge-ht{ display:inline-block; padding:.2rem .55rem; border-radius:999px; font-weight:900; }
+.badge-ht-normal{
+  background: color-mix(in oklab, var(--surface-3), white 8%);
+  color: var(--brand-300);
+  border:1px solid color-mix(in oklab, var(--brand-700), black 20%);
+}
+.badge-ht-fund{
+  background: color-mix(in oklab, var(--ok), black 20%);
+  color:#0b2a17;
+  border:1px solid color-mix(in oklab, var(--ok), black 35%);
+}
+
+/* ===== Buttons ===== */
+.btn-ci{
+  background:linear-gradient(180deg,var(--brand-500),var(--brand-400));
+  border:0; color:#062b33; font-weight:900; border-radius:12px; padding:.55rem 1.1rem;
+  box-shadow:var(--shadow);
+}
+.btn-ci:hover{ filter:brightness(1.05) }
+.btn-ci:disabled{ opacity:.6; cursor:not-allowed; }
+
+.btn-co{
+  background:linear-gradient(180deg,#ff6b6b,#e94444);
+  border:0; color:#2a0202; font-weight:900; border-radius:12px; padding:.55rem 1.1rem;
+  box-shadow:var(--shadow);
+}
+.btn-co:disabled{ opacity:.5; cursor:not-allowed; }
+
+/* ปุ่มออกจากระบบในหัวให้แดง */
+.headbar a.btn.btn-sm:last-child{
+  background: linear-gradient(180deg, #ff6b6b, #e94444);
+  border:1px solid #c22f2f; color:#fff;
+}
+
+/* ===== Logs table ===== */
+.table-logs{
+  background:var(--surface);
+  color:var(--ink);
+  border-radius:12px; overflow:hidden; table-layout:auto
+}
+.table-logs thead th{
+  background:var(--surface-2); color:var(--text-strong);
+  border-bottom:2px solid color-mix(in oklab, var(--brand-400), white 35%); font-weight:900;
+}
+.table-logs td,.table-logs th{ border-color: color-mix(in oklab, var(--brand-700), white 65%) !important; vertical-align:middle!important }
+.table-logs tbody tr:hover td{ background:color-mix(in oklab, var(--surface-3), white 8%); }
+
+/* ===== Toggle button ===== */
+.toggle-btn{
+  border-radius:999px;font-weight:800;
+  background:color-mix(in oklab, var(--surface-2), white 6%);
+  color:var(--brand-900);
+  border:1px solid color-mix(in oklab, var(--brand-700), black 22%);
+}
+.toggle-btn:hover{ filter:brightness(1.03) }
+
+/* a11y + details */
+:focus-visible{ outline:3px solid var(--ring); outline-offset:2px; border-radius:10px }
+*::-webkit-scrollbar{width:10px;height:10px}
+*::-webkit-scrollbar-thumb{background:#2e3a44;border-radius:10px}
+*::-webkit-scrollbar-thumb:hover{background:#3a4752}
+*::-webkit-scrollbar-track{background:#151a20}
+
+/* ลมหายใจเล็ก ๆ เมื่ออยู่ในช่วงเช็คอิน */
+.pulse{ animation:pulse 1.3s ease-in-out infinite }
+@keyframes pulse{ 0%{opacity:.7} 50%{opacity:1} 100%{opacity:.7} }
 </style>
 </head>
 <body>
 <div class="wrap">
+
+  <!-- Header -->
   <div class="headbar d-flex justify-content-between align-items-center mb-3">
     <div>
-      <div class="h5 m-0 font-weight-bold">ลงเวลาทำงาน • Attendance</div>
+      <div class="h5 m-0 font-weight-bold"><i class="bi bi-clock-history"></i> ลงเวลาทำงาน • Attendance</div>
       <small class="text-light">
         ผู้ใช้: <?= h($username ?: $name) ?>
         • สถานะชั่วโมงปัจจุบัน:
@@ -278,14 +395,15 @@ body{ background:linear-gradient(135deg,var(--psu-deep),var(--psu-ocean)); color
     </div>
     <div>
       <a href="../SelectRole/role.php" class="btn btn-sm btn-outline-light">ย้อนกลับ</a>
-      <a href="../logout.php" class="btn btn-sm btn-outline-light">ออกจากระบบ</a>
+      <a href="../logout.php" class="btn btn-sm"><i class="bi bi-box-arrow-right"></i> ออกจากระบบ</a>
     </div>
   </div>
 
+  <!-- Windows info -->
   <div class="hint">
     <?= h($windows_all_txt) ?>.
     <br>
-    <small><?= h($window_label) ?> <?= $next_window ? '• '.h($next_window) : '' ?></small>
+    <small class="<?= $in_window ? 'pulse':'' ?>"><?= h($window_label) ?> <?= $next_window ? '• '.h($next_window) : '' ?></small>
   </div>
 
   <div class="debug mb-3">
@@ -294,35 +412,35 @@ body{ background:linear-gradient(135deg,var(--psu-deep),var(--psu-ocean)); color
   </div>
 
   <?php if($msg): ?>
-    <div class="alert" style="background:#2e7d32;color:#fff;border:none;border-radius:10px"><?= h($msg) ?></div>
+    <div class="alert" style="background:var(--ok);color:#fff;border:none;border-radius:10px"><i class="bi bi-check2-circle"></i> <?= h($msg) ?></div>
   <?php endif; ?>
   <?php if($err): ?>
-    <div class="alert" style="background:#d9534f;color:#fff;border:none;border-radius:10px"><?= h($err) ?></div>
+    <div class="alert" style="background:var(--danger);color:#fff;border:none;border-radius:10px"><i class="bi bi-x-octagon"></i> <?= h($err) ?></div>
   <?php endif; ?>
 
-  <!-- สถานะ -->
+  <!-- Status -->
   <div class="cardx p-3 mb-3">
     <div class="stat">
       <div>
         <?php if($open): ?>
           <div class="h5 m-0">
-            สถานะ: <span class="badge badge-open p-2">กำลังเข้างาน</span>
+            สถานะ: <span class="badge-open">กำลังเข้างาน</span>
             <span class="ml-2 <?= $open['hour_type']==='fund'?'badge-ht badge-ht-fund':'badge-ht badge-ht-normal' ?>">
               <?= $open['hour_type']==='fund'?'ชั่วโมงทุน':'ชั่วโมงปกติ' ?>
             </span>
           </div>
-          <div class="mt-2">
+          <div class="mt-2" style="color:var(--ink-muted)">
             เข้างานเมื่อ: <strong><?= h($open['date_in'].' '.$open['time_in']) ?></strong>
           </div>
         <?php else: ?>
-          <div class="h5 m-0">สถานะ: <span class="badge badge-close p-2">ว่าง (ไม่ได้เข้างาน)</span></div>
+          <div class="h5 m-0">สถานะ: <span class="badge-close">ว่าง (ไม่ได้เข้างาน)</span></div>
           <div class="mt-1">
-            <small>สถานะชั่วโมงปัจจุบันของคุณ: 
+            <small>สถานะชั่วโมงปัจจุบันของคุณ:
               <span class="<?= $user_status_current==='ชั่วโมงทุน'?'badge-ht badge-ht-fund':'badge-ht badge-ht-normal' ?>">
                 <?= h($user_status_current) ?>
               </span>
             </small>
-            <br><small><?= h($window_label) ?></small>
+            <br><small class="<?= $in_window ? 'pulse':'' ?>"><?= h($window_label) ?></small>
           </div>
         <?php endif; ?>
       </div>
@@ -332,12 +450,12 @@ body{ background:linear-gradient(135deg,var(--psu-deep),var(--psu-ocean)); color
           <button type="submit" class="btn btn-ci"
             <?= ($open || !$in_window) ? 'disabled' : '' ?>
             title="<?= !$in_window ? h($windows_all_txt) : 'เช็คอินตอนนี้' ?>">
-            เข้างาน
+            <i class="bi bi-door-open"></i> เข้างาน
           </button>
         </form>
         <form method="post" class="d-inline ml-2">
           <input type="hidden" name="action" value="checkout">
-          <button type="submit" class="btn btn-co" <?= $open ? '' : 'disabled' ?>>ออกงาน</button>
+          <button type="submit" class="btn btn-co" <?= $open ? '' : 'disabled' ?>><i class="bi bi-door-closed"></i> ออกงาน</button>
         </form>
       </div>
     </div>
@@ -345,7 +463,7 @@ body{ background:linear-gradient(135deg,var(--psu-deep),var(--psu-ocean)); color
 
   <!-- Logs + Toggle -->
   <div class="d-flex justify-content-between align-items-center mb-2">
-    <div class="h5 m-0">บันทึกล่าสุด</div>
+    <div class="h5 m-0"><i class="bi bi-journal-text"></i> บันทึกล่าสุด</div>
     <button id="toggleLogs" class="btn btn-light btn-sm toggle-btn">ซ่อนบันทึกล่าสุด</button>
   </div>
 
@@ -359,7 +477,7 @@ body{ background:linear-gradient(135deg,var(--psu-deep),var(--psu-ocean)); color
             <th style="width:120px">วันที่ออกงาน</th>
             <th style="width:110px">เวลาออก</th>
             <th style="width:120px">ชั่วโมงรวม</th>
-            <th style="width:120px">ชนิดชั่วโมง</th>
+            <th style="width:140px">ชนิดชั่วโมง</th>
             <th>สถานะ</th>
           </tr>
         </thead>
@@ -384,9 +502,9 @@ body{ background:linear-gradient(135deg,var(--psu-deep),var(--psu-ocean)); color
               </td>
               <td>
                 <?php if($is_open): ?>
-                  <span class="badge badge-warning">กำลังเข้างาน</span>
+                  <span class="badge badge-warning" style="font-weight:800">กำลังเข้างาน</span>
                 <?php else: ?>
-                  <span class="badge badge-success">ปิดงานแล้ว</span>
+                  <span class="badge badge-success" style="font-weight:800">ปิดงานแล้ว</span>
                 <?php endif; ?>
               </td>
             </tr>
@@ -417,13 +535,10 @@ function confirmCheckin(){
     box.style.display = hide ? 'none' : '';
     btn.textContent = hide ? 'แสดงบันทึกล่าสุด' : 'ซ่อนบันทึกล่าสุด';
   }
-  try {
-    const saved = localStorage.getItem(KEY);
-    applyHidden(saved === '1');
-  } catch(e){}
+  try { applyHidden(localStorage.getItem(KEY) === '1'); } catch(e){}
 
   btn.addEventListener('click', ()=>{
-    const hide = box.style.display !== 'none' ? true : false;
+    const hide = box.style.display !== 'none';
     applyHidden(hide);
     try { localStorage.setItem(KEY, hide ? '1':'0'); } catch(e){}
   });

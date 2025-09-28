@@ -71,7 +71,6 @@ while ($r = $res->fetch_assoc()) {
 $stmt->close();
 
 // ===== ตรวจ “กำลังปฏิบัติงานอยู่ตอนนี้” (time_out = '00:00:00') =====
-// นับเพิ่มเฉพาะบรรทัดที่อยู่ในช่วงวันที่ที่เลือก (date_in ระหว่าง start~end)
 $sqlOpen = "
   SELECT hour_type, date_in, time_in
   FROM attendance
@@ -91,7 +90,7 @@ $now = new DateTimeImmutable('now');
 $sec_fund_live   = $sec_fund_closed;
 $sec_normal_live = $sec_normal_closed;
 
-$open_status = []; // เก็บรายการที่กำลังทำอยู่ เพื่อแสดงป้าย
+$open_status = [];
 foreach ($openRows as $o) {
   $dtStart = strtotime($o['date_in'].' '.$o['time_in']);
   if ($dtStart) {
@@ -106,18 +105,16 @@ foreach ($openRows as $o) {
   }
 }
 
-// ชั่วโมงแบบทศนิยม (สองตำแหน่ง) สำหรับสรุป
+// ชั่วโมงแบบทศนิยม
 $hrs_fund_closed     = round($sec_fund_closed/3600, 2);
 $hrs_normal_closed   = round($sec_normal_closed/3600, 2);
 $hrs_fund_live       = round($sec_fund_live/3600, 2);
 $hrs_normal_live     = round($sec_normal_live/3600, 2);
 
-// คิดค่าตอบแทนชั่วโมงปกติ (เวอร์ชัน “รวมถึงงานที่ค้างอยู่ถึงตอนนี้”)
+// คิดค่าตอบแทนชั่วโมงปกติ (รวมงานที่ค้างอยู่ถึงตอนนี้)
 $wage_normal_live   = $hrs_normal_live * $NORMAL_RATE;
-// (ถ้าอยากโชว์เฉพาะ “ปิดงานแล้ว” ก็ใช้ $hrs_normal_closed * $NORMAL_RATE แยกอีกแถว)
 
-
-// ===== รายการบันทึกละเอียด (ช่วงที่เลือก) =====
+// ===== รายการบันทึกละเอียด =====
 $sqlLogs = "
   SELECT attendance_id, date_in, time_in, date_out, time_out, hour_type
   FROM attendance
@@ -140,29 +137,130 @@ $stmt->close();
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="stylesheet"
  href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+<link rel="stylesheet"
+ href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
 <style>
+/* ========= Teal-Graphite Tokens ========= */
 :root{
-  --psu-deep:#0D4071; --psu-ocean:#4173BD; --psu-sky:#29ABE2; --psu-sritrang:#BBB4D8;
-  --ok:#2e7d32; --muted:#6b7280;
+  --text-strong:#F4F7F8;
+  --text-normal:#E6EBEE;
+  --text-muted:#B9C2C9;
+
+  --bg-grad1:#222831;
+  --bg-grad2:#393E46;
+
+  --surface:#1C2228;
+  --surface-2:#232A31;
+  --surface-3:#2B323A;
+  --ink:#F4F7F8;
+  --ink-muted:#CFEAED;
+
+  --brand-900:#EEEEEE;
+  --brand-700:#BFC6CC;
+  --brand-500:#00ADB5;
+  --brand-400:#27C8CF;
+  --brand-300:#73E2E6;
+
+  --ok:#2ecc71; --warn:#f0ad4e;
+
+  --shadow-lg:0 22px 66px rgba(0,0,0,.55);
+  --shadow:   0 14px 32px rgba(0,0,0,.42);
 }
-body{ background:linear-gradient(135deg,var(--psu-deep),var(--psu-ocean)); color:#fff; font-family:"Segoe UI",Tahoma,Arial }
+
+html,body{height:100%}
+body{
+  background:linear-gradient(135deg,var(--bg-grad1),var(--bg-grad2));
+  color:var(--ink); font-family:"Segoe UI",Tahoma,Arial,sans-serif
+}
 .wrap{ max-width:1100px; margin:26px auto; padding:0 14px; }
+
+/* ========== Topbar ========== */
 .topbar{
-  background:rgba(13,64,113,.92); border:1px solid rgba(187,180,216,.25);
-  border-radius:14px; padding:12px 16px; box-shadow:0 8px 20px rgba(0,0,0,.18);
+  position:sticky; top:0; z-index:20;
+  background:color-mix(in oklab, var(--surface), black 6%);
+  border:1px solid color-mix(in oklab, var(--brand-700), black 18%);
+  border-radius:14px; padding:12px 16px;
+  box-shadow:0 8px 20px rgba(0,0,0,.28);
 }
-.cardx{ background:#fff; color:#0b2746; border:1px solid #dbe6ff; border-radius:16px; box-shadow:0 12px 26px rgba(0,0,0,.22) }
-.badge-chip{ background:#eaf4ff; color:#0D4071; border:1px solid #cfe2ff; border-radius:999px; padding:.25rem .6rem; font-weight:800 }
+.brand{font-weight:900; letter-spacing:.3px; color:var(--text-strong)}
+.badge-chip{
+  background:color-mix(in oklab, var(--surface-2), white 6%);
+  color:var(--text-strong); border:1px solid color-mix(in oklab, var(--brand-700), black 18%);
+  border-radius:999px; padding:.25rem .6rem; font-weight:800
+}
+.clock{
+  display:inline-flex;align-items:center;gap:8px;
+  background:color-mix(in oklab, var(--surface-2), white 6%);
+  border:1px solid color-mix(in oklab, var(--brand-700), black 18%);
+  border-radius:999px;padding:6px 10px;font-weight:800
+}
+.clock .bi{opacity:.9}
+.btn-outline-light{color:var(--text-normal); border-color:color-mix(in oklab, var(--brand-700), black 25%)}
+
+/* ========== Cards / Tiles ========== */
+.cardx{
+  background:linear-gradient(180deg,
+    color-mix(in oklab, var(--surface), white 10%),
+    color-mix(in oklab, var(--surface-2), white 6%)
+  );
+  color:var(--ink);
+  border:1px solid color-mix(in oklab, var(--brand-700), black 20%);
+  border-radius:16px;
+  box-shadow:var(--shadow);
+}
+.tile{
+  background:color-mix(in oklab, var(--surface-2), white 6%);
+  border:1px solid color-mix(in oklab, var(--brand-700), black 18%);
+  border-radius:14px; padding:14px 16px;
+}
 .kpi{ display:grid; grid-template-columns: repeat(3,minmax(200px,1fr)); gap:12px; }
-.tile{ background:#f7fbff; border:1px solid #e3eeff; border-radius:14px; padding:14px 16px; }
-.tile .n{ font-size:1.6rem; font-weight:900; color:#0D4071 }
-.tile .l{ font-weight:800; color:#1b4b83; opacity:.9 }
-.table thead th{ background:#f5f9ff; color:#06345c; border-bottom:2px solid #e7eefc; }
-.table td,.table th{ border-color:#e7eefc!important }
-.pill{display:inline-block;border-radius:999px;padding:.15rem .5rem;font-weight:800}
-.pill-fund{background:#eaf7ea;color:#1b5e20;border:1px solid #cfe9cf}
-.pill-normal{background:#e9f5ff;color:#0D4071;border:1px solid #cfe2ff}
-.alert-live{background:#fff8e1;color:#5d4037;border:1px solid #ffe082;border-radius:12px}
+.tile .n{ font-size:1.7rem; font-weight:900; color:var(--brand-300); line-height:1.2; text-shadow:0 0 1px rgba(0,0,0,.25) }
+.tile .l{ font-weight:800; color:var(--text-strong); display:flex; align-items:center; gap:8px }
+.tile .l .bi{opacity:.9}
+
+/* ========== Pills & table ========== */
+.pill{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:.15rem .6rem;font-weight:800}
+.pill-fund{
+  background:color-mix(in oklab, var(--ok), black 82%);
+  color:#e8fff2;
+  border:1px solid color-mix(in oklab, var(--ok), black 52%);
+}
+.pill-normal{
+  background:color-mix(in oklab, var(--brand-400), black 82%);
+  color:#e7fbff;
+  border:1px solid color-mix(in oklab, var(--brand-400), black 52%);
+}
+.blink-dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--warn);box-shadow:0 0 0 0 rgba(240,173,78,.7);animation: ping 1.4s infinite}
+@keyframes ping{0%{transform:scale(1);opacity:1}70%{box-shadow:0 0 0 10px rgba(240,173,78,0)}100%{transform:scale(1);opacity:1}}
+
+.table thead th{
+  background:color-mix(in oklab, var(--surface-3), white 6%);
+  color:var(--brand-900);
+  border-bottom:2px solid color-mix(in oklab, var(--brand-700), black 22%);
+}
+.table td,.table th{ border-color:color-mix(in oklab, var(--brand-700), black 22%)!important; color:var(--text-normal) }
+
+/* Alert (live) */
+.alert-live{
+  background:color-mix(in oklab, var(--warn), black 86%);
+  color:#fff3cd;
+  border:1px solid color-mix(in oklab, var(--warn), black 55%);
+  border-radius:12px
+}
+.alert-live .bi{opacity:.95}
+
+/* Focus a11y */
+:focus-visible{outline:3px solid var(--brand-400); outline-offset:2px; border-radius:10px}
+
+/* Scrollbar */
+*::-webkit-scrollbar{width:10px;height:10px}
+*::-webkit-scrollbar-thumb{background:#2e3a44;border-radius:10px}
+*::-webkit-scrollbar-thumb:hover{background:#3a4752}
+*::-webkit-scrollbar-track{background:#151a20}
+
+@media (max-width: 767px){
+  .kpi{grid-template-columns: 1fr}
+}
 </style>
 </head>
 <body>
@@ -171,63 +269,81 @@ body{ background:linear-gradient(135deg,var(--psu-deep),var(--psu-ocean)); color
   <!-- Top -->
   <div class="topbar d-flex align-items-center justify-content-between mb-3">
     <div>
-      <div class="h5 m-0 font-weight-bold">โปรไฟล์ของฉัน • ชั่วโมงทำงาน</div>
+      <div class="h5 m-0 brand"><i class="bi bi-person-badge"></i> โปรไฟล์ของฉัน • ชั่วโมงทำงาน</div>
       <small class="text-light">
-        ชื่อ: <span class="badge-chip"><?= h($user['name'] ?: $user['username']) ?></span>
-        • รหัสนักศึกษา: <span class="badge-chip"><?= h($user['student_ID'] ?: '-') ?></span>
-        • สถานะ: <span class="badge-chip"><?= h($user['status'] ?: '-') ?></span>
+        <i class="bi bi-person"></i> ชื่อ:
+        <span class="badge-chip"><?= h($user['name'] ?: $user['username']) ?></span>
+        &nbsp;•&nbsp;<i class="bi bi-pass"></i> รหัสนักศึกษา:
+        <span class="badge-chip"><?= h($user['student_ID'] ?: '-') ?></span>
+        &nbsp;•&nbsp;<i class="bi bi-activity"></i> สถานะ:
+        <span class="badge-chip"><?= h($user['status'] ?: '-') ?></span>
       </small>
     </div>
-    <div>
-      <a href="front_store.php" class="btn btn-sm btn-outline-light">← กลับหน้าเมนู</a>
+    <div class="d-flex align-items-center" style="gap:8px">
+      <div class="clock"><i class="bi bi-clock"></i><span id="nowClock">--:--:--</span></div>
+      <a href="front_store.php" class="btn btn-sm btn-outline-light"><i class="bi bi-box-arrow-left"></i> กลับหน้าเมนู</a>
     </div>
   </div>
 
   <!-- ถ้ากำลังปฏิบัติงาน -->
   <?php if (!empty($open_status)): ?>
     <div class="cardx p-3 mb-3 alert-live">
-      <div class="font-weight-bold mb-1">กำลังปฏิบัติงานอยู่ตอนนี้</div>
+      <div class="font-weight-bold mb-2">
+        <span class="blink-dot"></span>
+        &nbsp;<i class="bi bi-lightning-charge-fill"></i> กำลังปฏิบัติงานอยู่ตอนนี้
+      </div>
       <ul class="mb-0 pl-3">
         <?php foreach($open_status as $o): ?>
-          <li>
-            ชนิด: <strong><?= $o['type']==='fund'?'ชั่วโมงทุน':'ชั่วโมงปกติ' ?></strong>
+          <li class="mb-1">
+            <span class="<?= $o['type']==='fund'?'pill pill-fund':'pill pill-normal' ?>">
+              <i class="bi bi-briefcase"></i>
+              <?= $o['type']==='fund'?'ชั่วโมงทุน':'ชั่วโมงปกติ' ?>
+            </span>
             &nbsp;เริ่มเมื่อ: <strong><?= h($o['since']) ?></strong>
             &nbsp;เวลาที่นับถึงตอนนี้: <strong><?= h(fmtHM((int)$o['elapsed'])) ?></strong>
           </li>
         <?php endforeach; ?>
       </ul>
-      <small class="text-muted d-block mt-1">* เวลาด้านล่าง “รวมถึง” งานที่กำลังทำอยู่แล้ว ณ ขณะนี้</small>
+      <small class="d-block mt-2" style="color:var(--ink-muted)"><i class="bi bi-info-circle"></i> เวลารวมด้านล่าง “รวมถึง” งานที่กำลังทำอยู่ ณ ขณะนี้</small>
     </div>
   <?php endif; ?>
 
   <!-- Filter -->
   <div class="cardx p-3 mb-3">
     <form class="form-inline" method="get">
-      <label class="mr-2">ช่วงวันที่</label>
-      <input type="date" name="start" class="form-control mr-2" value="<?= h($start_date) ?>">
-      <span class="mr-2">ถึง</span>
-      <input type="date" name="end" class="form-control mr-2" value="<?= h($end_date) ?>">
-      <button class="btn btn-primary">แสดง</button>
-      <span class="ml-3 text-muted">* นับงานที่ปิดแล้ว + งานที่กำลังทำ</span>
+      <label class="mr-2" style="color:var(--text-strong)"><i class="bi bi-calendar2-week"></i> ช่วงวันที่</label>
+      <input type="date" name="start" class="form-control mr-2"
+             style="background:var(--surface-2);color:var(--ink);border:1px solid color-mix(in oklab, var(--brand-700), black 22%);border-radius:10px"
+             value="<?= h($start_date) ?>">
+      <span class="mr-2 text-light">ถึง</span>
+      <input type="date" name="end" class="form-control mr-2"
+             style="background:var(--surface-2);color:var(--ink);border:1px solid color-mix(in oklab, var(--brand-700), black 22%);border-radius:10px"
+             value="<?= h($end_date) ?>">
+      <button class="btn btn-primary"
+              style="background:linear-gradient(180deg,var(--brand-500),var(--brand-400));border:0;font-weight:800;border-radius:10px">
+              <i class="bi bi-search"></i> แสดง
+      </button>
+      <span class="ml-3" style="color:var(--ink-muted)"><i class="bi bi-check2-circle"></i> นับงานที่ปิดแล้ว + งานที่กำลังทำ</span>
     </form>
   </div>
 
   <!-- KPI (Live = รวมจนถึงตอนนี้) -->
-   <div class="cardx p-3 mb-3">
+  <div class="cardx p-3 mb-3">
     <div class="kpi">
       <div class="tile">
-        <div class="l">ชั่วโมงทุน (รวมถึงงานที่กำลังทำ)</div>
+        <div class="l"><i class="bi bi-mortarboard"></i> ชั่วโมงทุน (รวมถึงงานที่กำลังทำ)</div>
         <div class="n"><?= fmtHM($sec_fund_live) ?></div>
-        <div class="small text-muted mt-1">ปิดงานแล้ว: <?= fmtHM($sec_fund_closed) ?> (≈ <?= number_format($hrs_fund_closed,2) ?> ชม.)</div>
+        <div class="small mt-1" style="color:var(--ink-muted)"><i class="bi bi-check2"></i> ปิดงานแล้ว: <?= fmtHM($sec_fund_closed) ?> (≈ <?= number_format($hrs_fund_closed,2) ?> ชม.)</div>
       </div>
       <div class="tile">
-        <div class="l">ชั่วโมงปกติ (รวมถึงงานที่กำลังทำ)</div>
+        <div class="l"><i class="bi bi-briefcase"></i> ชั่วโมงปกติ (รวมถึงงานที่กำลังทำ)</div>
         <div class="n"><?= fmtHM($sec_normal_live) ?></div>
-        <div class="small text-muted mt-1">ปิดงานแล้ว: <?= fmtHM($sec_normal_closed) ?> (≈ <?= number_format($hrs_normal_closed,2) ?> ชม.)</div>
+        <div class="small mt-1" style="color:var(--ink-muted)"><i class="bi bi-check2"></i> ปิดงานแล้ว: <?= fmtHM($sec_normal_closed) ?> (≈ <?= number_format($hrs_normal_closed,2) ?> ชม.)</div>
       </div>
       <div class="tile">
-        <div class="l">ค่าตอบแทนชั่วโมงปกติ</div>
+        <div class="l"><i class="bi bi-cash-coin"></i> ค่าตอบแทนชั่วโมงปกติ</div>
         <div class="n"><?= money2($wage_normal_live) ?> ฿</div>
+        <div class="small mt-1" style="color:var(--ink-muted)"><i class="bi bi-info-circle"></i> อัตรา: <?= number_format($NORMAL_RATE,2) ?> ฿/ชม.</div>
       </div>
     </div>
   </div>
@@ -235,27 +351,26 @@ body{ background:linear-gradient(135deg,var(--psu-deep),var(--psu-ocean)); color
   <!-- รายการบันทึก -->
   <div class="cardx p-3 mb-4">
     <div class="d-flex align-items-center justify-content-between mb-2">
-      <h6 class="m-0 font-weight-bold">บันทึกเวลาในช่วงที่เลือก</h6>
-      <span class="text-muted small">เรียง “ล่าสุดก่อน”</span>
+      <h6 class="m-0 font-weight-bold" style="color:var(--text-strong)"><i class="bi bi-journal-text"></i> บันทึกเวลาในช่วงที่เลือก</h6>
+      <span class="small" style="color:var(--ink-muted)">เรียง “ล่าสุดก่อน”</span>
     </div>
     <div class="table-responsive">
       <table class="table table-sm mb-0">
         <thead>
           <tr>
-            <th style="width:140px">วันที่เข้า</th>
-            <th style="width:110px">เวลาเข้า</th>
-            <th style="width:140px">วันที่ออก</th>
-            <th style="width:110px">เวลาออก</th>
-            <th style="width:130px">ชนิดชั่วโมง</th>
-            <th class="text-right" style="width:140px">ชั่วโมงรวม</th>
+            <th style="width:140px"><i class="bi bi-calendar-event"></i> วันที่เข้า</th>
+            <th style="width:110px"><i class="bi bi-alarm"></i> เวลาเข้า</th>
+            <th style="width:140px"><i class="bi bi-calendar2-event"></i> วันที่ออก</th>
+            <th style="width:110px"><i class="bi bi-alarm"></i> เวลาออก</th>
+            <th style="width:130px"><i class="bi bi-tag"></i> ชนิดชั่วโมง</th>
+            <th class="text-right" style="width:140px"><i class="bi bi-stopwatch"></i> ชั่วโมงรวม</th>
           </tr>
         </thead>
         <tbody>
           <?php if($logs->num_rows === 0): ?>
-            <tr><td colspan="6" class="text-center text-muted">ไม่มีข้อมูลในช่วงที่เลือก</td></tr>
+            <tr><td colspan="6" class="text-center" style="color:var(--ink-muted)"><i class="bi bi-emoji-neutral"></i> ไม่มีข้อมูลในช่วงที่เลือก</td></tr>
           <?php else: ?>
             <?php while($r = $logs->fetch_assoc()):
-              // H:mm ของแต่ละบรรทัด (ถ้ายังไม่ออกงาน แสดงเวลาถึงตอนนี้)
               $isOpen = (trim($r['time_out']) === '00:00:00');
               $s = strtotime($r['date_in'].' '.$r['time_in']);
               $e = $isOpen ? time() : strtotime($r['date_out'].' '.$r['time_out']);
@@ -267,8 +382,13 @@ body{ background:linear-gradient(135deg,var(--psu-deep),var(--psu-ocean)); color
                 <td><?= h($r['date_in']) ?></td>
                 <td><?= h($r['time_in']) ?></td>
                 <td><?= h($r['date_out']) ?></td>
-                <td><?= h($r['time_out']) ?></td>
-                <td><span class="<?= $pill ?>"><?= h($lbl) ?><?= $isOpen?' (กำลังทำงาน)':'' ?></span></td>
+                <td>
+                  <?= h($r['time_out']) ?>
+                  <?php if($isOpen): ?>
+                    <span class="ml-1 badge badge-warning" title="กำลังทำงานอยู่" style="background:color-mix(in oklab, var(--warn), black 25%); color:#fff; border-radius:999px"><i class="bi bi-lightning"></i> live</span>
+                  <?php endif; ?>
+                </td>
+                <td><span class="<?= $pill ?>"><i class="bi bi-tags"></i> <?= h($lbl) ?><?= $isOpen?' (กำลังทำงาน)':'' ?></span></td>
                 <td class="text-right"><?= h($dur) ?></td>
               </tr>
             <?php endwhile; ?>
@@ -279,5 +399,18 @@ body{ background:linear-gradient(135deg,var(--psu-deep),var(--psu-ocean)); color
   </div>
 
 </div>
+
+<script>
+// นาฬิกาปัจจุบัน (อัปเดตทุกวินาที)
+(function(){
+  const el = document.getElementById('nowClock');
+  function pad(n){return (n<10?'0':'')+n}
+  function tick(){
+    const d = new Date();
+    el.textContent = [pad(d.getHours()),pad(d.getMinutes()),pad(d.getSeconds())].join(':');
+  }
+  tick(); setInterval(tick, 1000);
+})();
+</script>
 </body>
 </html>

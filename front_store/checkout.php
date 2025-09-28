@@ -1,6 +1,6 @@
 <?php
 // SelectRole/check_order.php — แสดงออเดอร์ทั้งหมด + ดูสลิป (modal)
-// รายการอาหารจะแสดง "ท็อปปิง" ก่อน "โปรโมชัน" ตามต้องการ
+// เวอร์ชันตกแต่ง: โทน Teal-Graphite + การ์ดคอนทราสต์สูง
 declare(strict_types=1);
 session_start();
 if (empty($_SESSION['uid'])) { header("Location: ../index.php"); exit; }
@@ -13,8 +13,8 @@ function h($s){ return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
 function money_fmt($n){ return number_format((float)$n, 2); }
 
 /* --------- รับค่าตัวกรอง --------- */
-$status    = $_GET['status']     ?? 'all';              // all | pending | ready | canceled
-$q         = trim((string)($_GET['q'] ?? ''));          // ชื่อเมนู
+$status    = $_GET['status']     ?? 'all';
+$q         = trim((string)($_GET['q'] ?? ''));
 $date_from = trim((string)($_GET['date_from'] ?? ''));
 $time_from = trim((string)($_GET['time_from'] ?? ''));
 $date_to   = trim((string)($_GET['date_to'] ?? ''));
@@ -41,11 +41,12 @@ if ($q !== '') {
   $params []= '%'.$q.'%';
 }
 
-/* ดึงหัวออเดอร์ + จำนวนสลิป (slip_count) */
+/* ดึงหัวออเดอร์ + จำนวนสลิป + จำนวนไอเท็ม */
 $sql = "
   SELECT o.order_id, o.user_id, o.order_time, o.status, o.total_price,
          u.username, u.name,
-         COALESCE(ps.slip_count, 0) AS slip_count
+         COALESCE(ps.slip_count, 0) AS slip_count,
+         COALESCE(items.item_count, 0) AS item_count
   FROM orders o
   JOIN users u ON u.user_id=o.user_id
   LEFT JOIN (
@@ -53,6 +54,11 @@ $sql = "
     FROM payment_slips
     GROUP BY order_id
   ) ps ON ps.order_id = o.order_id
+  LEFT JOIN (
+    SELECT order_id, SUM(quantity) AS item_count
+    FROM order_details
+    GROUP BY order_id
+  ) items ON items.order_id = o.order_id
   WHERE $where
   ORDER BY o.order_time DESC
 ";
@@ -69,13 +75,11 @@ while ($row = $orders_rs->fetch_assoc()) {
 }
 $stmt->close();
 
-/* --------- ดึงรายละเอียด (พร้อมโปรโมชัน) เฉพาะออเดอร์ที่แสดง --------- */
+/* --------- รายการย่อย (คำนวณโปร/ท็อปปิง) --------- */
 $details = [];
 if (!empty($order_ids)) {
   $in = implode(',', array_fill(0, count($order_ids), '?'));
   $types_in = str_repeat('i', count($order_ids));
-
-  // promo_id ถูกบันทึกใน order_details (อาจเป็น NULL)
   $sql2 = "
     SELECT d.order_id, d.menu_id, d.quantity, d.note, d.total_price,
            d.promo_id,
@@ -92,29 +96,23 @@ if (!empty($order_ids)) {
   $stmt2->execute();
   $res2 = $stmt2->get_result();
   while ($r = $res2->fetch_assoc()) {
-    // ===== คำนวณรายละเอียดราคาต่อชิ้น =====
     $qty         = max(1, (int)$r['quantity']);
-    $line_total  = (float)$r['total_price'];              // รวมหลังหักโปร + ท็อปปิง
-    $unit_final  = $line_total / $qty;                    // ราคาต่อชิ้นจริง
-    $base_price  = (float)$r['unit_base_price'];          // ราคาเมนูฐาน
+    $line_total  = (float)$r['total_price'];
+    $unit_final  = $line_total / $qty;
+    $base_price  = (float)$r['unit_base_price'];
 
-    // ส่วนลดต่อชิ้นตามโปร (ถ้ามี)
     $unit_discount = 0.0;
     if (!is_null($r['promo_id'])) {
-      if ((string)$r['discount_type'] === 'PERCENT') {
-        $raw = ((float)$r['discount_value']/100.0) * $base_price;
-      } else {
-        $raw = (float)$r['discount_value'];
-      }
+      $raw = ((string)$r['discount_type'] === 'PERCENT')
+        ? ((float)$r['discount_value']/100.0) * $base_price
+        : (float)$r['discount_value'];
       $cap = is_null($r['max_discount']) ? 999999999.0 : (float)$r['max_discount'];
       $unit_discount = max(0.0, min($raw, $cap));
     }
 
-    // ท็อปปิงต่อชิ้น (คำนวณย้อนกลับ) = unit_final - (base_price - unit_discount)
     $topping_per_unit = max(0.0, $unit_final - max(0.0, $base_price - $unit_discount));
     $topping_line     = $topping_per_unit * $qty;
 
-    // เก็บค่าที่คำนวณเพิ่มไว้ด้วย
     $r['calc_unit_final']     = $unit_final;
     $r['calc_unit_discount']  = $unit_discount;
     $r['calc_topping_unit']   = $topping_per_unit;
@@ -125,8 +123,8 @@ if (!empty($order_ids)) {
   $stmt2->close();
 }
 
-/* --------- ดึงสลิปของออเดอร์ที่แสดง (ทั้งหมด) --------- */
-$slips = []; // $slips[order_id] = [ ['path'=>..., 'uploaded_at'=>...], ... ]
+/* --------- สลิป --------- */
+$slips = [];
 if (!empty($order_ids)) {
   $in = implode(',', array_fill(0, count($order_ids), '?'));
   $types_in = str_repeat('i', count($order_ids));
@@ -142,7 +140,7 @@ if (!empty($order_ids)) {
   $res3 = $stmt3->get_result();
   while ($r = $res3->fetch_assoc()) {
     $oid = (int)$r['order_id'];
-    $url = '../' . ltrim((string)$r['file_path'], '/'); // path เก็บแบบ relative จาก root
+    $url = '../' . ltrim((string)$r['file_path'], '/');
     $slips[$oid][] = [
       'path' => $url,
       'mime' => (string)$r['mime'],
@@ -160,62 +158,223 @@ if (!empty($order_ids)) {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="stylesheet"
  href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+<link rel="stylesheet"
+ href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
 
 <style>
-:root {
-  --psu-deep-blue:#0D4071; --psu-ocean-blue:#4173BD; --psu-sky-blue:#29ABE2; --psu-sritrang:#BBB4D8;
-  --ok:#2e7d32; --warn:#f0ad4e; --bad:#d9534f; --shadow:0 8px 20px rgba(0,0,0,.1);
+/* ========= Design Tokens: Teal-Graphite ========= */
+:root{
+  --text-strong:#F4F7F8;
+  --text-normal:#E6EBEE;
+  --text-muted:#B9C2C9;
+
+  --bg-grad1:#222831;
+  --bg-grad2:#393E46;
+
+  --surface:#1C2228;
+  --surface-2:#232A31;
+  --surface-3:#2B323A;
+  --ink:#F4F7F8;
+  --ink-muted:#CFEAED;
+
+  --brand-900:#EEEEEE;
+  --brand-700:#BFC6CC;
+  --brand-500:#00ADB5;
+  --brand-400:#27C8CF;
+  --brand-300:#73E2E6;
+
+  --aqua-500:#00ADB5;
+  --aqua-400:#5ED8DD;
+  --mint-300:#223037;
+  --violet-200:#5C6A74;
+
+  --ok:#2ecc71; --warn:#f0ad4e; --bad:#d9534f;
+  --shadow-lg:0 22px 66px rgba(0,0,0,.55);
+  --shadow:   0 14px 32px rgba(0,0,0,.42);
 }
-body{ background:linear-gradient(135deg, var(--psu-deep-blue), var(--psu-ocean-blue)); color:#fff; font-family:"Segoe UI", Tahoma, sans-serif; min-height:100vh;}
-.wrap{max-width:1280px; margin:28px auto; padding:0 16px;}
-.topbar{position:sticky; top:0; z-index:50; padding:12px 16px; margin-bottom:12px; border-radius:14px; background:rgba(13,64,113,.92); backdrop-filter: blur(6px); border:1px solid rgba(187,180,216,.25); box-shadow:0 8px 20px rgba(0,0,0,.18);}
-.brand{font-weight:900; letter-spacing:.3px; color:#fff; margin:0}
-.badge-user{ background:var(--psu-ocean-blue); color:#fff; font-weight:800; border-radius:999px }
+
+/* ========= Page ========= */
+body{
+  background:linear-gradient(135deg,var(--bg-grad1),var(--bg-grad2));
+  color:var(--ink);
+  font-family:"Segoe UI", Tahoma, sans-serif;
+  min-height:100vh;
+}
+.wrap{max-width:1320px; margin:28px auto; padding:0 16px;}
+
+.topbar{
+  position:sticky; top:0; z-index:50; margin-bottom:12px;
+  padding:12px 16px; border-radius:14px;
+  background:color-mix(in oklab, var(--surface), black 6%);
+  border:1px solid color-mix(in oklab, var(--violet-200), black 12%);
+  box-shadow:0 8px 20px rgba(0,0,0,.18);
+  backdrop-filter: blur(6px);
+}
+.brand{font-weight:900; letter-spacing:.3px; color:var(--text-strong); margin:0}
+.brand .bi{opacity:.95; margin-right:6px}
+.badge-user{ background:linear-gradient(180deg,var(--brand-400),var(--brand-700)); color:#061b22; font-weight:800; border-radius:999px }
 .topbar-actions{ gap:8px }
-.topbar .btn-primary{ background:linear-gradient(180deg,#3aa3ff,#1f7ee8); border-color:#1669c9; font-weight:800 }
+.topbar .btn-primary{
+  background:linear-gradient(180deg,#3aa3ff,#1f7ee8);
+  border-color:#1669c9; font-weight:800
+}
 
-.filter{ background:rgba(255,255,255,.10); border:1px solid var(--psu-sritrang); border-radius:14px; padding:12px; box-shadow:0 8px 18px rgba(0,0,0,.18); margin-bottom:16px;}
-.filter label{font-weight:700; font-size:.9rem}
-.filter .form-control, .filter .custom-select{ border-radius:999px; border:1px solid #d8e6ff }
+/* ========= Filter ========= */
+.filter{
+  background:color-mix(in oklab, var(--surface), white 8%);
+  border:1px solid color-mix(in oklab, var(--violet-200), black 15%);
+  border-radius:14px; padding:12px;
+  box-shadow:0 8px 18px rgba(0,0,0,.18);
+  margin-bottom:16px;
+  color:var(--text-normal);
+}
+.filter label{font-weight:700; font-size:.9rem; color:var(--text-strong)}
+.filter .form-control,
+.filter .custom-select{
+  background:var(--surface-2);
+  color:var(--ink);
+  border-radius:999px;
+  border:1px solid color-mix(in oklab, var(--brand-700), black 22%);
+}
 .filter .btn-find{font-weight:800; border-radius:999px}
+.input-icon{ position:relative }
+.input-icon .bi{ position:absolute; left:12px; top:50%; transform:translateY(-50%); color:var(--text-muted) }
+.input-icon input{ padding-left:36px }
 
-.grid{ display:grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap:18px;}
-.card-order{ background:#fff; color:#0D4071; border:1px solid var(--psu-sritrang); border-radius:16px; box-shadow:var(--shadow); display:flex; flex-direction:column; overflow:hidden; transition:.15s;}
-.card-order:hover{ transform:translateY(-2px); box-shadow:0 12px 28px rgba(0,0,0,.18); }
-.co-head{ padding:12px 16px; border-bottom:1px solid var(--psu-sritrang); background:#f6faff; display:flex; justify-content:space-between; align-items:center;}
-.oid{font-weight:900; font-size:1.05rem}
-.meta{font-size:.82rem; color:#275a94}
+.quick-filters{ display:flex; flex-wrap:wrap; gap:8px; margin-top:8px }
+.quick-filters .btn{ border-radius:999px; font-weight:800; }
+
+/* ========= Grid ========= */
+.grid{ display:grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap:18px;}
+
+/* ========= Order Cards (คอนทราสต์สูง) ========= */
+.card-order{
+  position:relative;
+  background:linear-gradient(
+    180deg,
+    color-mix(in oklab, var(--surface), white 12%),
+    color-mix(in oklab, var(--surface-2), white 6%)
+  );
+  color:var(--ink);
+  border:1px solid color-mix(in oklab, var(--brand-700), black 18%);
+  box-shadow:
+    0 12px 28px rgba(0,0,0,.28),
+    0 0 0 1px color-mix(in oklab, var(--mint-300), white 60%);
+  border-radius:16px;
+  display:flex; flex-direction:column; overflow:hidden;
+  transition:transform .15s ease, box-shadow .15s ease, border-color .15s ease;
+}
+.card-order:hover{
+  transform:translateY(-2px);
+  border-color:color-mix(in oklab, var(--brand-400), black 8%);
+  box-shadow:
+    0 18px 40px rgba(0,0,0,.32),
+    0 0 0 1px color-mix(in oklab, var(--brand-400), white 50%);
+}
+.card-order::before{
+  content:""; position:absolute; inset:0; border-radius:inherit; pointer-events:none;
+  box-shadow:inset 0 1px 0 color-mix(in oklab, var(--brand-900), black 80%); opacity:.65;
+}
+.card-order::after{
+  content:""; position:absolute; left:0; right:0; top:0; height:3px;
+  background:linear-gradient(90deg, var(--brand-500), var(--brand-400)); opacity:.35;
+}
+
+/* ribbon */
+.ribbon{
+  position:absolute; left:-6px; top:10px;
+  background:#1f8bff; color:#fff; padding:6px 12px;
+  font-weight:900; font-size:.8rem; border-radius:0 10px 10px 0;
+  box-shadow:0 10px 22px rgba(0,0,0,.35)
+}
+.ribbon.ready{ background:#2e7d32 } .ribbon.canceled{ background:#d9534f } .ribbon.pending{ background:#f0ad4e; color:#113 }
+
+/* ID badge */
+.id-badge{
+  position:absolute; right:10px; top:10px;
+  background:color-mix(in oklab, var(--surface-2), white 10%);
+  color:var(--ink);
+  border:1px solid color-mix(in oklab, var(--brand-700), black 14%);
+  padding:4px 10px; border-radius:999px; font-weight:900; font-size:.85rem;
+  box-shadow:0 6px 14px rgba(0,0,0,.18); letter-spacing:.2px;
+}
+
+/* head/body/foot */
+.co-head{
+  padding:12px 16px;
+  background:color-mix(in oklab, var(--surface-2), white 8%);
+  border-bottom:1px solid color-mix(in oklab, var(--brand-700), black 18%);
+  display:flex; justify-content:space-between; align-items:center;
+}
+.oid{font-weight:900; font-size:1.05rem; display:flex; align-items:center; gap:8px}
+.copy{ cursor:pointer; color:var(--brand-300); font-size:1rem }
+.meta{font-size:.82rem; color:var(--ink-muted)}
 .badges{ display:flex; gap:8px; align-items:center; flex-wrap:wrap }
-.badge-status{ display:inline-flex; align-items:center; gap:6px; padding:4px 10px; border-radius:999px; font-size:.8rem; font-weight:800; background:#fff }
+.badge-status{ display:inline-flex; align-items:center; gap:6px; padding:4px 10px; border-radius:999px; font-size:.8rem; font-weight:800; background:var(--surface) }
 .st-pending{color:var(--warn)} .st-ready{color:var(--ok)} .st-canceled{color:var(--bad)}
-.badge-pay{ display:inline-flex; align-items:center; gap:6px; padding:4px 10px; border-radius:999px; font-size:.8rem; font-weight:800; background:#fff; color:#0D4071; border:1px solid #d8e6ff }
-.pay-cash{ color:#1e6f2d } .pay-transfer{ color:#0b61a4 }
+.badge-pay{ display:inline-flex; align-items:center; gap:6px; padding:4px 10px; border-radius:999px; font-size:.8rem; font-weight:800; background:var(--surface); color:var(--ink); border:1px solid color-mix(in oklab, var(--brand-700), black 18%) }
+.pay-cash{ color:#7dffa3 } .pay-transfer{ color:#9fd8ff }
 .dot{width:8px; height:8px; border-radius:50%; background:currentColor}
+
 .co-body{padding:14px 16px; flex:1}
 .line{margin-bottom:12px; font-size:.95rem; display:flex; justify-content:space-between; gap:10px}
-.qtyname{font-weight:800; color:#0D4071}
-.money{font-weight:900; color:#2b6fda; white-space:nowrap}
-.note{ margin-top:6px; font-size:.83rem; color:#0D4071; background:#eaf4ff; border:1px solid #cfe2ff; border-radius:8px; padding:6px 8px; display:inline-block; }
+.qtyname{font-weight:800; color:var(--text-strong)}
+.money{font-weight:900; color:var(--brand-300); white-space:nowrap; text-shadow:0 0 1px rgba(0,0,0,.25)}
+.note{
+  margin-top:6px; font-size:.83rem; color:var(--ink);
+  background:color-mix(in oklab, var(--surface-2), white 6%);
+  border:1px solid color-mix(in oklab, var(--brand-700), black 22%);
+  border-radius:8px; padding:6px 8px; display:inline-block;
+}
 .meta2{ display:flex; flex-wrap:wrap; gap:6px; margin-top:8px }
-.chip{display:inline-flex; align-items:center; gap:6px; padding:6px 10px; border-radius:999px; font-size:.8rem; font-weight:800; border:1px solid #d7e6ff;}
-.chip-top{ background:#f0f7ff; color:#0d3a6a;}
-.chip-promo{ background:#ecfff2; color:#0d5e2b; border-color:#cdeed5;}
-.divider{border-top:1px dashed var(--psu-sritrang); margin:8px 0}
-.co-foot{ background:#0D4071; color:#cde3ff; padding:12px 16px; display:flex; justify-content:space-between; align-items:center; border-radius:0 0 16px 16px }
-.sum-l{font-weight:700} .sum-r{font-size:1.1rem; font-weight:900; color:#fff}
+.chip{
+  display:inline-flex; align-items:center; gap:6px; padding:6px 10px; border-radius:999px;
+  font-size:.8rem; font-weight:800;
+  background:color-mix(in oklab, var(--surface-2), white 6%);
+  border:1px solid color-mix(in oklab, var(--brand-700), black 22%);
+  color:var(--text-normal);
+}
+.chip-top{
+  background:color-mix(in oklab, var(--aqua-400), black 82%);
+  color:#dffbfd;
+  border-color:color-mix(in oklab, var(--aqua-400), black 55%);
+}
+.chip-promo{
+  background:color-mix(in oklab, var(--ok), black 82%);
+  color:#e7ffef;
+  border-color:color-mix(in oklab, var(--ok), black 55%);
+}
+.chip .bi{ opacity:.9 }
+.divider{border-top:1px dashed color-mix(in oklab, var(--brand-700), black 18%); margin:8px 0}
 
-/* Modal สลิป */
+.co-foot{
+  background:linear-gradient(180deg,
+    color-mix(in oklab, var(--surface-2), white 6%),
+    color-mix(in oklab, var(--surface-3), white 3%)
+  );
+  color:var(--ink-muted);
+  padding:12px 16px; display:flex; justify-content:space-between; align-items:center;
+  border-top:1px solid color-mix(in oklab, var(--brand-700), black 18%);
+  border-radius:0 0 16px 16px
+}
+.sum-l{font-weight:700} .sum-r{font-size:1.1rem; font-weight:900; color:var(--ink)}
+
+/* modal */
 #slipModalBackdrop{ position:fixed; inset:0; background:rgba(0,0,0,.55); display:none; z-index:1050; }
-#slipModal{ position:fixed; left:50%; top:50%; transform:translate(-50%,-50%); width:min(900px, 96vw); max-height:92vh; overflow:auto; background:#fff; border-radius:14px; box-shadow:0 22px 60px rgba(0,0,0,.45); display:none; z-index:1060; color:#0D4071;}
-#slipModal .head{ display:flex; justify-content:space-between; align-items:center; padding:10px 14px; border-bottom:1px solid #e5eefc; background:#f6faff; font-weight:800;}
+#slipModal{ position:fixed; left:50%; top:50%; transform:translate(-50%,-50%); width:min(900px, 96vw); max-height:92vh; overflow:auto;
+  background:var(--surface); color:var(--ink); border-radius:14px; box-shadow:var(--shadow-lg); display:none; z-index:1060; }
+#slipModal .head{ display:flex; justify-content:space-between; align-items:center; padding:10px 14px; border-bottom:1px solid color-mix(in oklab, var(--brand-700), black 18%); background:color-mix(in oklab, var(--surface-2), white 6%); font-weight:800;}
 #slipModal .body{ padding:12px; }
 .slip-grid{ display:grid; grid-template-columns: repeat(auto-fill, minmax(220px,1fr)); gap:12px;}
-.slip-item{ background:#f8fbff; border:1px solid #e1edff; border-radius:10px; padding:8px; text-align:center; }
+.slip-item{ background:color-mix(in oklab, var(--surface-2), white 6%); border:1px solid color-mix(in oklab, var(--brand-700), black 20%); border-radius:10px; padding:8px; text-align:center; }
 .slip-item img{ max-width:100%; height:auto; border-radius:8px; cursor:zoom-in; }
-.slip-meta{ font-size:.8rem; color:#114a7a; margin-top:6px }
-.btn-close-slim{ background:transparent; border:0; font-size:26px; line-height:1; cursor:pointer; color:#053157;}
-.btn-view-slip{ border-radius:999px; font-weight:800; border:1px solid #cfe2ff; color:#0D4071; background:#fff;}
-.btn-view-slip:hover{ background:#eef6ff; }
+.slip-meta{ font-size:.8rem; color:var(--ink-muted); margin-top:6px }
+.btn-close-slim{ background:transparent; border:0; font-size:26px; line-height:1; cursor:pointer; color:var(--ink);}
+.btn-view-slip{ border-radius:999px; font-weight:800; border:1px solid color-mix(in oklab, var(--brand-700), black 18%); color:var(--ink); background:var(--surface);}
+.btn-view-slip:hover{ background:color-mix(in oklab, var(--surface-2), white 4%); }
+
+#toTop{ position:fixed; right:18px; bottom:18px; z-index:2000; display:none; }
+#toTop .btn{ border-radius:999px; font-weight:900; box-shadow:0 10px 24px rgba(0,0,0,.25) }
 </style>
 </head>
 <body>
@@ -223,12 +382,12 @@ body{ background:linear-gradient(135deg, var(--psu-deep-blue), var(--psu-ocean-b
 
   <!-- Navbar -->
   <div class="topbar d-flex align-items-center justify-content-between">
-    <h4 class="brand">PSU Blue Cafe • เช็คออเดอร์</h4>
+    <h4 class="brand"><i class="bi bi-clipboard2-check"></i> PSU Blue Cafe • เช็คออเดอร์</h4>
     <div class="d-flex align-items-center topbar-actions">
-      <a href="../front_store/front_store.php" class="btn btn-primary btn-sm">หน้าร้าน</a>
-      <a href="../SelectRole/role.php" class="btn btn-primary btn-sm">ตําเเหน่ง</a>
-      <span class="badge badge-user px-3 py-2">ผู้ใช้: <?= h($_SESSION['username'] ?? '') ?></span>
-      <a class="btn btn-sm btn-outline-light" href="../logout.php">ออกจากระบบ</a>
+      <a href="../front_store/front_store.php" class="btn btn-primary btn-sm"><i class="bi bi-shop"></i> หน้าร้าน</a>
+      <a href="../SelectRole/role.php" class="btn btn-primary btn-sm"><i class="bi bi-person-badge"></i> ตําเเหน่ง</a>
+      <span class="badge badge-user px-3 py-2"><i class="bi bi-person"></i> ผู้ใช้: <?= h($_SESSION['username'] ?? '') ?></span>
+      <a class="btn btn-sm btn-outline-light" href="../logout.php"><i class="bi bi-box-arrow-right"></i> ออกจากระบบ</a>
     </div>
   </div>
 
@@ -236,7 +395,7 @@ body{ background:linear-gradient(135deg, var(--psu-deep-blue), var(--psu-ocean-b
   <form class="filter" method="get">
     <div class="form-row">
       <div class="col-md-2 mb-2">
-        <label>สถานะ</label>
+        <label><i class="bi bi-funnel"></i> สถานะ</label>
         <select name="status" class="custom-select">
           <?php foreach(['all'=>'(ทั้งหมด)','pending'=>'Pending','ready'=>'Ready','canceled'=>'Canceled'] as $k=>$v){
             $sel = ($status===$k)?'selected':''; echo '<option value="'.h($k).'" '.$sel.'>'.h($v).'</option>';
@@ -244,61 +403,104 @@ body{ background:linear-gradient(135deg, var(--psu-deep-blue), var(--psu-ocean-b
         </select>
       </div>
       <div class="col-md-3 mb-2">
-        <label>ค้นหาชื่อเมนู</label>
-        <input type="text" name="q" class="form-control" value="<?= h($q) ?>" placeholder="เช่น ชาไทย">
-      </div>
-      <div class="col-md-3 mb-2">
-        <label>ตั้งแต่ (วันที่ / เวลา)</label>
-        <div class="form-row">
-          <div class="col"><input type="date" name="date_from" class="form-control" value="<?= h($date_from) ?>"></div>
-          <div class="col"><input type="time" name="time_from" class="form-control" value="<?= h($time_from) ?>"></div>
+        <label><i class="bi bi-search"></i> ค้นหาชื่อเมนู</label>
+        <div class="input-icon">
+          <i class="bi bi-search"></i>
+          <input type="text" name="q" class="form-control" value="<?= h($q) ?>" placeholder="เช่น ชาไทย">
         </div>
       </div>
       <div class="col-md-3 mb-2">
-        <label>ถึง (วันที่ / เวลา)</label>
+        <label><i class="bi bi-calendar2-week"></i> ตั้งแต่ (วันที่ / เวลา)</label>
         <div class="form-row">
-          <div class="col"><input type="date" name="date_to" class="form-control" value="<?= h($date_to) ?>"></div>
-          <div class="col"><input type="time" name="time_to" class="form-control" value="<?= h($time_to) ?>"></div>
+          <div class="col input-icon">
+            <i class="bi bi-calendar"></i>
+            <input type="date" name="date_from" class="form-control" value="<?= h($date_from) ?>">
+          </div>
+          <div class="col input-icon">
+            <i class="bi bi-clock"></i>
+            <input type="time" name="time_from" class="form-control" value="<?= h($time_from) ?>">
+          </div>
+        </div>
+      </div>
+      <div class="col-md-3 mb-2">
+        <label><i class="bi bi-calendar2-week"></i> ถึง (วันที่ / เวลา)</label>
+        <div class="form-row">
+          <div class="col input-icon">
+            <i class="bi bi-calendar"></i>
+            <input type="date" name="date_to" class="form-control" value="<?= h($date_to) ?>">
+          </div>
+          <div class="col input-icon">
+            <i class="bi bi-clock"></i>
+            <input type="time" name="time_to" class="form-control" value="<?= h($time_to) ?>">
+          </div>
         </div>
       </div>
       <div class="col-md-1 mb-2 d-flex align-items-end">
-        <button class="btn btn-primary btn-block btn-find">ค้นหา</button>
+        <button class="btn btn-primary btn-block btn-find"><i class="bi bi-arrow-right-circle"></i> ค้นหา</button>
       </div>
+    </div>
+
+    <div class="quick-filters">
+      <button type="button" class="btn btn-light btn-sm" data-qf="today"><i class="bi bi-calendar-day"></i> วันนี้</button>
+      <button type="button" class="btn btn-light btn-sm" data-qf="7d"><i class="bi bi-calendar-range"></i> 7 วัน</button>
+      <button type="button" class="btn btn-light btn-sm" data-qf="all"><i class="bi bi-infinity"></i> ทั้งหมด</button>
+      <button type="button" class="btn btn-outline-light btn-sm ml-auto" id="btnExport"><i class="bi bi-filetype-csv"></i> Export CSV</button>
+      <button type="button" class="btn btn-outline-light btn-sm" id="btnPrint"><i class="bi bi-printer"></i> พิมพ์</button>
     </div>
     <div class="text-light small mt-1">* ใส่เฉพาะวันที่ได้ ระบบจะถือเป็น 00:00 ถึง 23:59</div>
   </form>
 
   <?php if(!empty($orders)): ?>
-    <div class="grid">
+    <div class="grid" id="orderGrid">
       <?php foreach($orders as $o):
         $statusClass = ($o['status']==='ready'?'st-ready':($o['status']==='canceled'?'st-canceled':'st-pending'));
+        $ribbonClass = ($o['status']==='ready'?'ready':($o['status']==='canceled'?'canceled':'pending'));
         $rows = $details[$o['order_id']] ?? [];
         $is_transfer = ((int)$o['slip_count'] > 0);
         $pay_text = $is_transfer ? 'โอนเงิน' : 'เงินสด';
         $pay_class = $is_transfer ? 'pay-transfer' : 'pay-cash';
         $oid = (int)$o['order_id'];
         $mySlips = $slips[$oid] ?? [];
+        $itemCount = (int)($o['item_count'] ?? 0);
       ?>
-      <div class="card-order">
+      <div class="card-order" data-status="<?= h($o['status']) ?>">
+        <div class="ribbon <?= $ribbonClass ?>">
+          <?php if($o['status']==='ready'): ?>
+            <i class="bi bi-check2-circle"></i> Ready
+          <?php elseif($o['status']==='canceled'): ?>
+            <i class="bi bi-x-octagon"></i> Canceled
+          <?php else: ?>
+            <i class="bi bi-hourglass-split"></i> Pending
+          <?php endif; ?>
+        </div>
+
+        <div class="id-badge">#<?= $oid ?></div>
+
         <div class="co-head">
           <div>
-            <div class="oid">#<?= $oid ?></div>
-            <div class="meta"><?= h($o['order_time']) ?></div>
+            <div class="oid">
+              #<?= $oid ?>
+              <i class="bi bi-clipboard-plus copy" title="คัดลอกเลขออเดอร์" data-copy="<?= $oid ?>"></i>
+            </div>
+            <div class="meta"><i class="bi bi-clock-history"></i> <?= h($o['order_time']) ?> • <i class="bi bi-basket2"></i> <?= $itemCount ?> รายการ</div>
           </div>
           <div class="badges">
             <div class="badge-pay <?= $pay_class ?>" title="<?= $is_transfer ? 'มีสลิปแนบ' : 'ไม่มีสลิป (เงินสด)' ?>">
-              <span class="dot"></span> <?= h($pay_text) ?>
+              <i class="bi <?= $is_transfer ? 'bi-credit-card-2-back' : 'bi-cash-coin' ?>"></i>
+              <?= h($pay_text) ?>
+              <?php if ($is_transfer): ?><span class="text-primary ml-1">(<?= (int)$o['slip_count'] ?>)</span><?php endif; ?>
             </div>
 
             <?php if (!empty($mySlips)): ?>
               <button class="btn btn-sm btn-view-slip" data-oid="<?= $oid ?>" type="button">
-                ดูสลิป (<?= (int)count($mySlips) ?>)
+                <i class="bi bi-images"></i> ดูสลิป (<?= (int)count($mySlips) ?>)
               </button>
             <?php endif; ?>
 
             <div class="badge-status <?= $statusClass ?>">
               <span class="dot"></span>
-              <?= h($o['status']) ?>
+              <i class="bi <?= $o['status']==='ready' ? 'bi-check-circle' : ($o['status']==='canceled'?'bi-x-circle':'bi-hourglass') ?>"></i>
+              <?= h(ucfirst($o['status'])) ?>
             </div>
           </div>
         </div>
@@ -310,7 +512,6 @@ body{ background:linear-gradient(135deg, var(--psu-deep-blue), var(--psu-ocean-b
             $unit_disc    = (float)$r['calc_unit_discount'];
             $top_unit     = (float)$r['calc_topping_unit'];
 
-            // ป้ายโปรแบบอ่านง่าย
             $promo_label  = '';
             if (!is_null($r['promo_id'])) {
               if ((string)$r['discount_type'] === 'PERCENT') {
@@ -323,22 +524,21 @@ body{ background:linear-gradient(135deg, var(--psu-deep-blue), var(--psu-ocean-b
           ?>
             <div class="line">
               <div class="flex-grow-1">
-                <div class="qtyname"><?= (int)$qty ?> × <?= h($r['menu_name']) ?></div>
+                <div class="qtyname"><i class="bi bi-cup-hot"></i> <?= (int)$qty ?> × <?= h($r['menu_name']) ?></div>
 
                 <?php if(!empty($r['note'])): ?>
-                  <div class="note"><?= h($r['note']) ?></div>
+                  <div class="note"><i class="bi bi-sticky"></i> <?= h($r['note']) ?></div>
                 <?php endif; ?>
 
-                <!-- เรียง: ท็อปปิง -> โปรโมชัน -->
                 <div class="meta2">
                   <?php if ($top_unit > 0): ?>
-                    <span class="chip chip-top">ท็อปปิง +<?= money_fmt($top_unit) ?> ฿/ชิ้น</span>
+                    <span class="chip chip-top"><i class="bi bi-egg-fried"></i> ท็อปปิง +<?= money_fmt($top_unit) ?> ฿/ชิ้น</span>
                   <?php endif; ?>
                   <?php if ($promo_label !== ''): ?>
-                    <span class="chip chip-promo">โปรฯ: <?= h($promo_label) ?></span>
+                    <span class="chip chip-promo"><i class="bi bi-stars"></i> โปรฯ: <?= h($promo_label) ?></span>
                   <?php endif; ?>
                   <?php if ($top_unit <= 0 && $promo_label === ''): ?>
-                    <span class="chip">ไม่มีโปร/ท็อปปิง</span>
+                    <span class="chip"><i class="bi bi-dash-circle"></i> ไม่มีโปร/ท็อปปิง</span>
                   <?php endif; ?>
                 </div>
               </div>
@@ -352,23 +552,26 @@ body{ background:linear-gradient(135deg, var(--psu-deep-blue), var(--psu-ocean-b
         </div>
 
         <div class="co-foot">
-          <div class="sum-l">รวมทั้งออเดอร์</div>
+          <div class="sum-l"><i class="bi bi-calculator"></i> รวมทั้งออเดอร์</div>
           <div class="sum-r"><?= money_fmt($o['total_price']) ?> ฿</div>
         </div>
       </div>
       <?php endforeach; ?>
     </div>
   <?php else: ?>
-    <div class="text-center">ไม่พบออเดอร์ตามเงื่อนไข</div>
+    <div class="text-center"><i class="bi bi-emoji-neutral"></i> ไม่พบออเดอร์ตามเงื่อนไข</div>
   <?php endif; ?>
 
 </div>
+
+<!-- Back to top -->
+<div id="toTop"><button class="btn btn-primary"><i class="bi bi-arrow-up"></i></button></div>
 
 <!-- Modal แสดงสลิป -->
 <div id="slipModalBackdrop"></div>
 <div id="slipModal" role="dialog" aria-modal="true" aria-hidden="true">
   <div class="head">
-    <div class="ttl">สลิปการโอน • ออเดอร์ <span id="mdlOid"></span></div>
+    <div class="ttl"><i class="bi bi-receipt"></i> สลิปการโอน • ออเดอร์ <span id="mdlOid"></span></div>
     <button class="btn-close-slim" id="btnSlipClose" aria-label="Close">&times;</button>
   </div>
   <div class="body">
@@ -378,6 +581,7 @@ body{ background:linear-gradient(135deg, var(--psu-deep-blue), var(--psu-ocean-b
 
 <script>
 (function(){
+  // ===== Map slips to JS =====
   const slipMap = <?php
     $out = [];
     foreach ($slips as $oid => $arr) {
@@ -426,15 +630,93 @@ body{ background:linear-gradient(135deg, var(--psu-deep-blue), var(--psu-ocean-b
     modal.style.display = 'none';
     document.body.style.overflow = '';
   }
+
   document.addEventListener('click', (e)=>{
     const btn = e.target.closest('.btn-view-slip');
-    if (!btn) return;
-    const oid = btn.getAttribute('data-oid');
-    openModal(oid);
+    if (btn) { openModal(btn.getAttribute('data-oid')); }
+    const cp = e.target.closest('.copy');
+    if (cp) {
+      const v = cp.getAttribute('data-copy') || '';
+      navigator.clipboard?.writeText(v).then(()=>{
+        cp.classList.remove('bi-clipboard-plus');
+        cp.classList.add('bi-clipboard-check');
+        setTimeout(()=>{ cp.classList.remove('bi-clipboard-check'); cp.classList.add('bi-clipboard-plus'); }, 1200);
+      }).catch(()=>{});
+    }
   });
   backdrop.addEventListener('click', closeModal);
   btnClose.addEventListener('click', closeModal);
   document.addEventListener('keydown', (e)=>{ if(e.key==='Escape') closeModal(); });
+
+  // ===== Quick filters =====
+  document.querySelectorAll('[data-qf]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const type = btn.getAttribute('data-qf');
+      const set = (name, v)=>{ const el = document.querySelector(`[name="${name}"]`); if(el){ el.value=v; } };
+      const now = new Date();
+      const toDateStr = d => d.toISOString().slice(0,10);
+      if (type==='today') {
+        const d = toDateStr(now);
+        set('date_from', d); set('time_from','00:00'); set('date_to', d); set('time_to','23:59');
+      } else if (type==='7d') {
+        const d2 = toDateStr(now);
+        const d1 = new Date(now.getTime() - 6*24*3600*1000);
+        set('date_from', toDateStr(d1)); set('time_from','00:00'); set('date_to', d2); set('time_to','23:59');
+      } else {
+        set('date_from',''); set('time_from',''); set('date_to',''); set('time_to','');
+      }
+      document.querySelector('form.filter').submit();
+    });
+  });
+
+  // ===== Export CSV =====
+  document.getElementById('btnExport')?.addEventListener('click', ()=>{
+    const rows = [];
+    rows.push(['order_id','order_time','status','pay_method','item_count','total_price']);
+    document.querySelectorAll('.card-order').forEach(card=>{
+      const oid = card.querySelector('.oid')?.textContent?.replace('#','').trim() || '';
+      const meta = card.querySelector('.meta')?.textContent || '';
+      const time = (meta.match(/\d{4}-\d{2}-\d{2}.*$/) || [''])[0];
+      const status = card.getAttribute('data-status') || '';
+      const pay = card.querySelector('.badge-pay')?.innerText?.trim().split(/\s+/)[0] || '';
+      const cnt = (meta.match(/(\d+)\s*รายการ/)||[])[1] || '';
+      const total = card.querySelector('.sum-r')?.innerText?.replace(/[^\d.]/g,'') || '';
+      rows.push([oid,time,status,pay,cnt,total]);
+    });
+    const csv = rows.map(r=> r.map(v=> `"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
+    const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'orders.csv';
+    a.click();
+    URL.revokeObjectURL(a.href);
+  });
+
+  // ===== Print =====
+  document.getElementById('btnPrint')?.addEventListener('click', ()=>{
+    const clone = document.getElementById('orderGrid')?.cloneNode(true);
+    const w = window.open('', '_blank');
+    w.document.write(`
+      <html>
+        <head>
+          <title>พิมพ์รายการออเดอร์</title>
+          <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+          <style> body{ font-family:Segoe UI,Tahoma,sans-serif; padding:16px } .card-order{ page-break-inside:avoid; border:1px solid #ddd; border-radius:12px; margin-bottom:12px } </style>
+        </head>
+        <body></body>
+      </html>`);
+    w.document.body.appendChild(clone);
+    w.document.close();
+    w.focus();
+    w.print();
+  });
+
+  // ===== Back to top =====
+  const toTop = document.getElementById('toTop');
+  window.addEventListener('scroll', ()=>{
+    toTop.style.display = window.scrollY > 400 ? 'block' : 'none';
+  });
+  toTop.querySelector('button').addEventListener('click', ()=> window.scrollTo({top:0, behavior:'smooth'}));
 })();
 </script>
 

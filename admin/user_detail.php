@@ -44,7 +44,6 @@ $stmt->close();
 if (!$user) { header('Location: users_list.php'); exit; }
 
 // ===== รวมเวลาตามชนิดชั่วโมง (เฉพาะแถวที่ปิดงานแล้ว) =====
-// หมายเหตุ: ใช้ TIMESTAMPDIFF(SECOND, ...) เพื่อรวมวินาที แล้วแปลงเป็นชั่วโมงทีหลัง
 $sqlSum = "
   SELECT hour_type,
          COALESCE(SUM(
@@ -73,14 +72,14 @@ while ($r = $res->fetch_assoc()) {
 }
 $stmt->close();
 
-// ชั่วโมงแบบทศนิยม (คิดเงินสะดวก) — ปัดทศนิยม 2 ตำแหน่ง
+// ชั่วโมงแบบทศนิยม (คิดเงินสะดวก)
 $hrs_normal_decimal = round($sec_normal / 3600, 2);
 $hrs_fund_decimal   = round($sec_fund   / 3600, 2);
 
 // จำนวนเงินสำหรับชั่วโมงปกติ
 $wage_normal = $hrs_normal_decimal * $NORMAL_RATE;
 
-// ===== รายการบันทึกแบบละเอียด (เลือกดูได้) =====
+// ===== รายการบันทึกแบบละเอียด =====
 $sqlLogs = "
   SELECT attendance_id, date_in, time_in, date_out, time_out, hour_type
   FROM attendance
@@ -105,26 +104,117 @@ $stmt->close();
  href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
 <style>
 :root{
-  --psu-deep:#0D4071; --psu-ocean:#4173BD; --psu-sky:#29ABE2; --psu-sritrang:#BBB4D8;
-  --ok:#2e7d32; --muted:#6b7280;
+  --text-strong:#F4F7F8;
+  --text-normal:#E6EBEE;
+  --text-muted:#B9C2C9;
+
+  --bg-grad1:#222831;     /* background */
+  --bg-grad2:#393E46;
+
+  --surface:#1C2228;      /* cards */
+  --surface-2:#232A31;
+  --surface-3:#2B323A;
+
+  --ink:#F4F7F8;
+  --ink-muted:#CFEAED;
+
+  --brand-900:#EEEEEE;
+  --brand-700:#BFC6CC;
+  --brand-500:#00ADB5;    /* accent */
+  --brand-400:#27C8CF;
+  --brand-300:#73E2E6;
+
+  --ok:#2ecc71; --danger:#e53935;
+
+  --shadow-lg:0 22px 66px rgba(0,0,0,.55);
+  --shadow:   0 14px 32px rgba(0,0,0,.42);
 }
-body{ background:linear-gradient(135deg,var(--psu-deep),var(--psu-ocean)); color:#fff; font-family:"Segoe UI",Tahoma,Arial }
+
+/* ===== Page scaffold ===== */
+html,body{height:100%}
+body{
+  background:
+    radial-gradient(900px 360px at 110% -10%, rgba(39,200,207,.18), transparent 65%),
+    linear-gradient(135deg,var(--bg-grad1),var(--bg-grad2));
+  color:var(--text-strong);
+  font-family:"Segoe UI",Tahoma,Arial,sans-serif;
+}
 .wrap{ max-width:1100px; margin:26px auto; padding:0 14px; }
+
+/* ===== Topbar ===== */
 .topbar{
-  background:rgba(13,64,113,.92); border:1px solid rgba(187,180,216,.25);
-  border-radius:14px; padding:12px 16px; box-shadow:0 8px 20px rgba(0,0,0,.18);
+  background:rgba(28,34,40,.78);
+  border:1px solid rgba(255,255,255,.06);
+  border-radius:14px; padding:12px 16px;
+  box-shadow:var(--shadow-lg); backdrop-filter:blur(6px);
 }
-.cardx{ background:#fff; color:#0b2746; border:1px solid #dbe6ff; border-radius:16px; box-shadow:0 12px 26px rgba(0,0,0,.22) }
-.badge-chip{ background:#eaf4ff; color:#0D4071; border:1px solid #cfe2ff; border-radius:999px; padding:.25rem .6rem; font-weight:800 }
+.topbar .title{ font-weight:900; color:var(--brand-900) }
+.badge-chip{
+  display:inline-flex; align-items:center; gap:6px;
+  background:linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.03));
+  color:var(--brand-900); border:1px solid rgba(255,255,255,.12);
+  border-radius:999px; padding:.25rem .6rem; font-weight:800
+}
+.topbar .btn{
+  border-radius:12px; font-weight:800;
+  border:1px solid rgba(255,255,255,.15); color:var(--text-normal);
+  background:linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.03));
+}
+.topbar .btn:hover{ filter:brightness(1.08) }
+
+/* ===== Card ===== */
+.cardx{
+  background: linear-gradient(180deg,var(--surface),var(--surface-2));
+  color:var(--ink);
+  border:1px solid rgba(255,255,255,.06);
+  border-radius:16px; box-shadow:var(--shadow);
+}
+
+/* ===== Forms ===== */
+.form-inline label{ color:var(--brand-700); font-weight:700 }
+.form-control{
+  color:var(--text-strong); background:var(--surface-3);
+  border:1.5px solid rgba(255,255,255,.10); border-radius:12px;
+}
+.form-control:focus{
+  border-color: var(--brand-500);
+  box-shadow:0 0 0 .2rem rgba(0,173,181,.25);
+  background:#2F373F;
+}
+.btn-primary{
+  background:linear-gradient(180deg, var(--brand-500), #07949B);
+  border:0; border-radius:12px; font-weight:900; color:#061217;
+  box-shadow:0 8px 22px rgba(0,173,181,.25);
+}
+.text-muted{ color:var(--text-muted)!important }
+
+/* ===== KPI ===== */
 .kpi{ display:grid; grid-template-columns: repeat(3,minmax(200px,1fr)); gap:12px; }
-.tile{ background:#f7fbff; border:1px solid #e3eeff; border-radius:14px; padding:14px 16px; }
-.tile .n{ font-size:1.6rem; font-weight:900; color:#0D4071 }
-.tile .l{ font-weight:800; color:#1b4b83; opacity:.9 }
-.table thead th{ background:#f5f9ff; color:#06345c; border-bottom:2px solid #e7eefc; }
-.table td,.table th{ border-color:#e7eefc!important }
-.pill{display:inline-block;border-radius:999px;padding:.15rem .5rem;font-weight:800}
-.pill-fund{background:#eaf7ea;color:#1b5e20;border:1px solid #cfe9cf}
-.pill-normal{background:#e9f5ff;color:#0D4071;border:1px solid #cfe2ff}
+.tile{
+  background:linear-gradient(180deg,#262e36,#212930);
+  border:1px solid rgba(255,255,255,.08);
+  border-radius:14px; padding:14px 16px;
+}
+.tile .n{ font-size:1.6rem; font-weight:900; color:var(--brand-300) }
+.tile .l{ font-weight:800; color:var(--brand-700) }
+
+/* ===== Table ===== */
+.table thead th{
+  background:#222a31; color:var(--brand-300);
+  border-bottom:2px solid rgba(255,255,255,.08); font-weight:800;
+}
+.table td, .table th{ border-color: rgba(255,255,255,.06) !important; color:var(--text-normal) }
+.table tbody tr:hover td{ background:#20262d; color:var(--text-strong) }
+
+/* Pills */
+.pill{display:inline-block;border-radius:999px;padding:.15rem .6rem;font-weight:800;border:1px solid rgba(255,255,255,.12)}
+.pill-fund{background:rgba(46,204,113,.12); color:#7ee2a6; border-color:rgba(46,204,113,.35)}
+.pill-normal{background:rgba(0,173,181,.12); color:#7fdfe3; border-color:rgba(0,173,181,.35)}
+
+/* Small utilities */
+.hr-soft{ border-top:1px dashed rgba(255,255,255,.12) }
+a{ color:var(--brand-400) }
+a:hover{ color:var(--brand-300) }
 </style>
 </head>
 <body>
@@ -133,16 +223,16 @@ body{ background:linear-gradient(135deg,var(--psu-deep),var(--psu-ocean)); color
   <!-- Top -->
   <div class="topbar d-flex align-items-center justify-content-between mb-3">
     <div>
-      <div class="h5 m-0 font-weight-bold">รายละเอียดผู้ใช้ • ชั่วโมงทุน/ชั่วโมงปกติ</div>
-      <small class="text-light">
+      <div class="h5 m-0 title">รายละเอียดผู้ใช้ • ชั่วโมงทุน/ชั่วโมงปกติ</div>
+      <small class="d-block mt-1">
         ชื่อ: <span class="badge-chip"><?= h($user['name']) ?></span>
         • รหัสนักศึกษา: <span class="badge-chip"><?= h($user['student_ID'] ?: '-') ?></span>
         • สถานะปัจจุบัน: <span class="badge-chip"><?= h($user['status'] ?: '-') ?></span>
       </small>
     </div>
     <div>
-      <a href="users_list.php" class="btn btn-sm btn-outline-light mr-2">← รายชื่อผู้ใช้</a>
-      <a href="adminmenu.php" class="btn btn-sm btn-outline-light">หน้า Admin</a>
+      <a href="users_list.php" class="btn btn-sm mr-2">← รายชื่อผู้ใช้</a>
+      <a href="adminmenu.php" class="btn btn-sm">หน้า Admin</a>
     </div>
   </div>
 
@@ -182,7 +272,7 @@ body{ background:linear-gradient(135deg,var(--psu-deep),var(--psu-ocean)); color
   <!-- รายการบันทึก -->
   <div class="cardx p-3 mb-4">
     <div class="d-flex align-items-center justify-content-between mb-2">
-      <h6 class="m-0 font-weight-bold">บันทึกเวลาในช่วงที่เลือก</h6>
+      <h6 class="m-0" style="color:var(--brand-900); font-weight:800">บันทึกเวลาในช่วงที่เลือก</h6>
       <span class="text-muted small">แสดงผลล่าสุดก่อน</span>
     </div>
     <div class="table-responsive">
@@ -202,7 +292,6 @@ body{ background:linear-gradient(135deg,var(--psu-deep),var(--psu-ocean)); color
             <tr><td colspan="6" class="text-center text-muted">ไม่มีข้อมูลในช่วงที่เลือก</td></tr>
           <?php else: ?>
             <?php while($r = $logs->fetch_assoc()):
-              // คำนวณ H:mm
               $dur = '-';
               if (trim($r['time_out']) !== '00:00:00') {
                 $s = strtotime($r['date_in'].' '.$r['time_in']);

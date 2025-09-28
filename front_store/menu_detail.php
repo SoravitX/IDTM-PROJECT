@@ -1,5 +1,5 @@
 <?php
-// SelectRole/menu_detail.php — Standalone + Popup fragment (PSU tone)
+// SelectRole/menu_detail.php — Standalone + Popup fragment (PSU tone, decorated) — no image version
 declare(strict_types=1);
 session_start();
 if (empty($_SESSION['uid'])) { header("Location: ../index.php"); exit; }
@@ -17,11 +17,6 @@ $stmt->execute();
 $menu = $stmt->get_result()->fetch_assoc();
 $stmt->close();
 if (!$menu) { header("Location: front_store.php"); exit; }
-
-$img = trim((string)$menu['image']);
-$imgPathFs = __DIR__ . "/../admin/images/" . ($img !== '' ? $img : "default.png");
-$imgSrc    = "../admin/images/" . ($img !== '' ? $img : "default.png");
-if (!file_exists($imgPathFs)) { $imgSrc = "https://via.placeholder.com/800x600?text=No+Image"; }
 
 function money_fmt($n){ return number_format((float)$n, 2); }
 
@@ -60,9 +55,7 @@ $isPopup = (int)($_GET['popup'] ?? 0) === 1;
 
 /* ============ VIEW ============ */
 if (!$isPopup):
-  
 ?>
-
 <!doctype html>
 <html lang="th">
 <head>
@@ -71,147 +64,319 @@ if (!$isPopup):
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="stylesheet"
  href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+<link rel="stylesheet"
+ href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
 <style>
+/* พื้นหลังหน้าแบบไลต์: ยังใช้โทน PSU */
 body{ background:linear-gradient(135deg,#0D4071,#4173BD); color:#fff; font-family:"Segoe UI",Tahoma,Arial,sans-serif; }
-.containerx{ max-width:1060px; margin:28px auto; padding:0 14px; }
+.containerx{ max-width:900px; margin:24px auto; padding:0 12px; }
+
+/* ===== THEME TOKENS (fallback + Dark ที่คุณกำหนด) ===== */
+:root{
+  --text-strong:#0D4071;
+  --text-normal:#244b77;
+  --text-muted:#5f7a99;
+
+  --bg-grad1:#0a1a30;
+  --bg-grad2:#0D4071;
+
+  --surface:#0f223a;
+  --surface-2:#0a1f36;
+  --surface-3:#122a47;
+  --ink:#eaf3ff;
+  --ink-muted:#b2c5e3;
+
+  --brand-900:#dff3ff;
+  --brand-700:#9cc4dd;
+  --brand-500:#00ADB5;
+  --brand-400:#27C8CF;
+  --brand-300:#73E2E6;
+
+  --aqua-500:#00ADB5;
+  --aqua-400:#5ED8DD;
+  --mint-300:#223037;
+  --violet-200:#5C6A74;
+
+  --shadow-lg:0 22px 66px rgba(0,0,0,.55);
+  --shadow:   0 14px 32px rgba(0,0,0,.42);
+}
+
+/* ใช้ชุดที่คุณให้ */
+:root[data-theme="dark"]{
+  /* Teal-Graphite Dark */
+  --text-strong:#F4F7F8;
+  --text-normal:#E6EBEE;
+  --text-muted:#B9C2C9;
+
+  --bg-grad1:#222831;    /* graphite deep */
+  --bg-grad2:#393E46;    /* graphite */
+
+  --surface:#1C2228;     /* not pure black */
+  --surface-2:#232A31;
+  --surface-3:#2B323A;
+  --ink:#F4F7F8;
+  --ink-muted:#CFEAED;
+
+  --brand-900:#EEEEEE;   /* for badges on dark */
+  --brand-700:#BFC6CC;
+  --brand-500:#00ADB5;   /* accent unchanged */
+  --brand-400:#27C8CF;
+  --brand-300:#73E2E6;
+
+  --aqua-500:#00ADB5;
+  --aqua-400:#5ED8DD;
+  --mint-300:#223037;
+  --violet-200:#5C6A74;
+
+  --shadow-lg:0 22px 66px rgba(0,0,0,.55);
+  --shadow:   0 14px 32px rgba(0,0,0,.42);
+}
 </style>
 </head>
 <body>
 <div class="containerx">
 <?php endif; ?>
 
-<!-- ===== Popup / Inner Content ===== -->
+<!-- ===== Popup / Inner Content (NO IMAGE) ===== -->
+<link rel="stylesheet"
+ href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
 <style>
+/* ===== Popup ใช้ตัวแปรธีมทั้งหมด ===== */
 #popup-root{
-  background:linear-gradient(180deg, rgba(255,255,255,.9), rgba(255,255,255,.82));
-  border-radius:20px; border:1px solid #cfe3ff; overflow:hidden;
-  color:#08263f;
+  background: linear-gradient(180deg, color-mix(in oklab, var(--surface), black 6%), var(--surface));
+  color: var(--ink);
+  border-radius:14px;
+  border:1px solid color-mix(in oklab, var(--violet-200), black 18%);
+  box-shadow: var(--shadow-lg);
+  max-width:900px; margin:0 auto; overflow:hidden;
 }
 #popup-head{
-  background:linear-gradient(135deg,#e7f4ff,#d5ecff);
-  padding:14px 16px; border-bottom:1px solid #cfe3ff;
+  background:
+    radial-gradient(240px 90px at 105% -20%, color-mix(in oklab, var(--aqua-500), transparent 75%), transparent),
+    linear-gradient(135deg, color-mix(in oklab, var(--surface-2), white 8%), var(--surface-3));
+  padding:12px 14px;
+  border-bottom:1px solid color-mix(in oklab, var(--brand-700), black 30%);
 }
-#popup-grid{ display:grid; grid-template-columns: 40% 60%; gap:0; }
-#popup-grid .thumb{ width:100%; height:320px; object-fit:cover; background:#eaf4ff; }
-#popup-body{ padding:16px; }
-.badge-cat{ display:inline-block; background:#e9f4ff; color:#084a87; border:1px solid #bcd6f3; border-radius:999px; padding:4px 12px; font-weight:800; font-size:.85rem; }
-.menu-title{ font-weight:900; margin:0; color:#08345c; }
-.price-tag{ font-size:1.6rem; font-weight:900; color:#063862; background:linear-gradient(180deg,#4EC5E0,#29ABE2);
-  display:inline-block; padding:6px 14px; border-radius:12px; box-shadow:0 6px 16px rgba(41,171,226,.35); }
+.menu-title{ font-weight:900; margin:0; color:var(--text-strong); display:flex; align-items:center; gap:8px; font-size:1.05rem; }
+.badge-cat{
+  display:inline-flex; align-items:center; gap:6px;
+  background: color-mix(in oklab, var(--surface-2), white 6%);
+  color: var(--ink);
+  border:1px solid color-mix(in oklab, var(--brand-700), black 20%);
+  border-radius:999px; padding:3px 10px; font-weight:800; font-size:.8rem;
+}
+.price-tag{
+  font-size:1.25rem; font-weight:900; color:#062534;
+  background: linear-gradient(180deg, var(--brand-400), var(--brand-500));
+  display:inline-flex; align-items:center; gap:8px; padding:6px 14px; border-radius:12px;
+  box-shadow:0 10px 22px color-mix(in oklab, var(--brand-500), transparent 65%), inset 0 -2px 0 rgba(0,0,0,.15);
+}
+.price-tag i{opacity:.9}
 
+#popup-body{ padding:12px 14px; }
+#popup-body .hint{ color:var(--ink-muted); font-weight:700 }
+
+/* sections & fields */
+.box{
+  background: var(--surface);
+  border:1px solid color-mix(in oklab, var(--brand-700), black 28%);
+  border-radius:12px; padding:10px;
+}
+.box + .box{ margin-top:4px; }
+#popup-root .sec-title{
+  margin:10px 0 6px; font-weight:900; color:var(--text-normal);
+  letter-spacing:.2px; display:flex; align-items:center; gap:8px; font-size:.95rem
+}
+
+/* chips */
 #popup-root input[type="radio"], #popup-root input[type="checkbox"]{ appearance:none; display:none; }
-#popup-root .chip{ display:inline-flex; align-items:center; gap:8px; padding:8px 14px; margin:4px 8px 4px 0; border-radius:999px;
-  font-weight:800; color:#0a3a62; background:#eef6ff; border:1px solid #cfe2ff; cursor:pointer; user-select:none; transition:.15s; }
+#popup-root .chip{
+  display:inline-flex; align-items:center; gap:8px; padding:7px 12px; margin:4px 8px 4px 0;
+  border-radius:999px; font-weight:800; color:var(--text-normal);
+  background: color-mix(in oklab, var(--surface-2), white 4%);
+  border:1px solid color-mix(in oklab, var(--brand-700), black 20%);
+  cursor:pointer; user-select:none; transition:.15s; font-size:.9rem
+}
 #popup-root .chip:hover{ transform:translateY(-1px); }
-#popup-root input:checked + .chip{ background:linear-gradient(180deg,#29ABE2,#4EC5E0); color:#052b47; border-color:#0e5b8a; box-shadow:0 6px 14px rgba(15,98,146,.25); }
+#popup-root input:checked + .chip{
+  background: linear-gradient(180deg, var(--brand-400), var(--brand-500));
+  color:#062534; border-color: color-mix(in oklab, var(--brand-500), black 18%);
+  box-shadow:0 8px 18px color-mix(in oklab, var(--brand-500), transparent 72%);
+}
+.chip .price{ font-size:.8rem; font-weight:900; opacity:.95 }
 .option-grid{ display:flex; flex-wrap:wrap; gap:8px 10px; }
 
-.chip .price { font-size:.85rem; font-weight:900; opacity:.85 }
-
-#popup-root .sec-title{ margin:14px 0 8px; font-weight:900; color:#0D4071; letter-spacing:.2px; }
+/* inputs */
 #popup-root textarea.form-control, #popup-root input.form-control{
-  background:#f6fbff; border:2px solid #e2eefc; color:#0b3a61; border-radius:12px;
+  background: var(--surface-2);
+  color: var(--ink);
+  border:2px solid color-mix(in oklab, var(--brand-700), black 25%);
+  border-radius:10px;
 }
-#popup-root textarea.form-control:focus, #popup-root input.form-control:focus{ box-shadow:0 0 0 .2rem rgba(41,171,226,.35); border-color:#a6cdf6; }
-#popup-root .footer-actions{ border-top:1px dashed #cfe0ff; margin:16px -16px 0; padding:14px 16px; display:flex; gap:12px; }
-#popup-root .btn-cancel{ background:#fff; color:#0D4071; border:2px solid #cfe0ff; font-weight:800; border-radius:12px; padding:.6rem 1rem; }
-#popup-root .btn-save{ flex:1; background:linear-gradient(180deg,#1ea65a,#138b49); color:#fff; border:0; font-weight:900; letter-spacing:.2px; border-radius:12px; padding:.7rem 1rem; box-shadow:0 10px 22px rgba(20,140,75,.28); }
-@media (max-width:860px){ #popup-grid{ grid-template-columns:1fr } #popup-grid .thumb{ height:220px } #popup-root .footer-actions{ flex-direction:column } }
+#popup-root textarea.form-control::placeholder{ color: color-mix(in oklab, var(--ink), black 35%); }
+#popup-root textarea.form-control:focus, #popup-root input.form-control:focus{
+  border-color: var(--brand-400);
+  box-shadow:0 0 0 .18rem color-mix(in oklab, var(--brand-400), white 65%);
+}
+
+/* qty */
+.qty-wrap{ display:flex; align-items:center; gap:8px; max-width:220px }
+.qty-wrap .btn-step{
+  width:38px; height:38px; display:inline-flex; align-items:center; justify-content:center;
+  background: var(--surface-2);
+  border:2px solid color-mix(in oklab, var(--brand-700), black 25%);
+  border-radius:10px; font-weight:900; color:var(--text-normal);
+}
+.qty-wrap .btn-step:active{ transform:translateY(1px) }
+
+/* footer */
+#popup-root .footer-actions{
+  border-top:1px dashed color-mix(in oklab, var(--brand-700), black 25%);
+  margin:12px -14px 0; padding:12px 14px; display:flex; gap:10px;
+}
+#popup-root .btn-cancel{
+  background: var(--surface-2); color: var(--text-strong);
+  border:2px solid color-mix(in oklab, var(--violet-200), black 18%);
+  font-weight:800; border-radius:10px; padding:.5rem .9rem;
+}
+#popup-root .btn-cancel:hover{ filter:brightness(1.06); }
+/* ปุ่มหลัก – โทนอ่านง่ายตามรีเควส */
+#popup-root .btn-save{
+  flex:1;
+  background: linear-gradient(180deg, #3aa3ff, #1f7ee8); /* ฟ้าอ่านง่าย */
+  color:#fff; border:0; font-weight:900; letter-spacing:.2px; border-radius:12px; padding:.55rem .9rem;
+  box-shadow:0 10px 22px rgba(31,126,232,.35), inset 0 -2px 0 rgba(0,0,0,.15);
+}
+#popup-root .btn-save:hover{ filter:brightness(1.05); }
+
+/* hint / subnote */
+#calc_total_hint{ font-weight:900; color:var(--ink-muted); font-size:.9rem }
+.subnote{ font-size:.8rem; color:var(--text-muted); }
+
+/* grid */
+#form-grid{ display:grid; grid-template-columns:1fr; gap:10px; }
+.span-2{ grid-column: 1 / -1; }
+@media (min-width:768px){
+  #form-grid{ grid-template-columns: 1fr 1fr; gap:12px; }
+}
+
+/* focus a11y */
+#popup-root .btn-cancel:focus-visible,
+#popup-root .btn-save:focus-visible,
+#popup-root .chip:focus-visible{
+  outline:3px solid color-mix(in oklab, var(--brand-500), white 35%);
+  outline-offset:2px; border-radius:12px;
+}
 </style>
 
-<div id="popup-root">
+<div id="popup-root" role="dialog" aria-label="ตัวเลือกเมนู">
   <div id="popup-head">
     <div class="d-flex justify-content-between align-items-center">
       <div>
-        <h4 class="menu-title mb-1"><?= htmlspecialchars($menu['name'],ENT_QUOTES,'UTF-8') ?></h4>
-        <span class="badge-cat"><?= htmlspecialchars($menu['category_name'] ?? 'เมนู',ENT_QUOTES,'UTF-8') ?></span>
+        <h4 class="menu-title mb-1"><i class="bi bi-cup-hot"></i> <?= htmlspecialchars($menu['name'],ENT_QUOTES,'UTF-8') ?></h4>
+        <span class="badge-cat"><i class="bi bi-tag"></i> <?= htmlspecialchars($menu['category_name'] ?? 'เมนู',ENT_QUOTES,'UTF-8') ?></span>
       </div>
-      <div class="price-tag"><?= money_fmt($menu['price']) ?> ฿</div>
+      <div class="price-tag" title="ราคาเมนูพื้นฐาน">
+        <i class="bi bi-cash-coin"></i> <?= money_fmt($menu['price']) ?> ฿
+      </div>
     </div>
   </div>
 
-  <div id="popup-grid">
-    <img src="<?= htmlspecialchars($imgSrc,ENT_QUOTES,'UTF-8') ?>" class="thumb" alt="">
-    <div id="popup-body">
-      <form method="post" action="front_store.php" id="menuForm">
-        <input type="hidden" name="action" value="add">
-        <input type="hidden" name="menu_id" value="<?= (int)$menu['menu_id'] ?>">
-        <?php if ($editMode): ?>
-          <input type="hidden" name="edit" value="1">
-          <input type="hidden" name="old_key" value="<?= htmlspecialchars($old_key,ENT_QUOTES,'UTF-8') ?>">
+  <div id="popup-body">
+    <form method="post" action="front_store.php" id="menuForm">
+      <input type="hidden" name="action" value="add">
+      <input type="hidden" name="menu_id" value="<?= (int)$menu['menu_id'] ?>">
+      <?php if ($editMode): ?>
+        <input type="hidden" name="edit" value="1">
+        <input type="hidden" name="old_key" value="<?= htmlspecialchars($old_key,ENT_QUOTES,'UTF-8') ?>">
+      <?php endif; ?>
+
+      <!-- ค่าบวกเพิ่มจากท็อปปิง -->
+      <input type="hidden" name="addon_total" id="addon_total" value="0">
+
+      <div id="form-grid">
+        <div class="box">
+          <div class="sec-title"><i class="bi bi-emoji-smile"></i> ระดับความหวาน</div>
+          <?php $opts=['หวานน้อย','ปกติ','หวานมาก']; foreach($opts as $i=>$sv): $id='sweet'.($i+1); $checked=($selSweet===$sv)?'checked':''; ?>
+            <input type="radio" name="sweet" id="<?= $id ?>" value="<?= htmlspecialchars($sv,ENT_QUOTES,'UTF-8') ?>" <?= $checked ?>>
+            <label class="chip" for="<?= $id ?>"><i class="bi bi-droplet-half"></i> <?= htmlspecialchars($sv,ENT_QUOTES,'UTF-8') ?></label>
+          <?php endforeach; ?>
+        </div>
+
+        <div class="box">
+          <div class="sec-title"><i class="bi bi-snow"></i> น้ำแข็ง</div>
+          <?php $opts=['ไม่ใส่น้ำแข็ง','ปกติ','เยอะ']; foreach($opts as $i=>$iv): $id='ice'.($i+1); $checked=($selIce===$iv)?'checked':''; ?>
+            <input type="radio" name="ice" id="<?= $id ?>" value="<?= htmlspecialchars($iv,ENT_QUOTES,'UTF-8') ?>" <?= $checked ?>>
+            <label class="chip" for="<?= $id ?>"><i class="bi bi-asterisk"></i> <?= htmlspecialchars($iv,ENT_QUOTES,'UTF-8') ?></label>
+          <?php endforeach; ?>
+        </div>
+
+        <div class="box">
+          <div class="sec-title"><i class="bi bi-aspect-ratio"></i> ขนาด</div>
+          <?php $opts=['เล็ก','ธรรมดา','ใหญ่']; foreach($opts as $i=>$sv): $id='size'.($i+1); $checked=($selSize===$sv)?'checked':''; ?>
+            <input type="radio" name="size" id="<?= $id ?>" value="<?= htmlspecialchars($sv,ENT_QUOTES,'UTF-8') ?>" <?= $checked ?>>
+            <label class="chip" for="<?= $id ?>"><i class="bi bi-arrows-fullscreen"></i> <?= htmlspecialchars($sv,ENT_QUOTES,'UTF-8') ?></label>
+          <?php endforeach; ?>
+        </div>
+
+        <div class="box span-2">
+          <div class="sec-title"><i class="bi bi-bag-plus"></i> ท็อปปิง (เลือกได้หลายอย่าง)</div>
+          <div class="option-grid">
+            <?php foreach($toppings as $i=>$tp):
+              $id='tp'.($i+1);
+              $checked=in_array($tp['name'],$selToppings,true)?'checked':'';
+              $p = (float)$tp['base_price'];
+            ?>
+              <input
+                type="checkbox"
+                name="toppings[]"
+                id="<?= $id ?>"
+                value="<?= (int)$tp['topping_id'] ?>"
+                data-title="<?= htmlspecialchars($tp['name'],ENT_QUOTES,'UTF-8') ?>"
+                data-price="<?= htmlspecialchars(number_format($p,2,'.',''),ENT_QUOTES,'UTF-8') ?>"
+                <?= $checked ?>
+              >
+              <label class="chip" for="<?= $id ?>">
+                <i class="bi bi-plus-circle"></i>
+                <span><?= htmlspecialchars($tp['name'],ENT_QUOTES,'UTF-8') ?></span>
+                <?php if($p>0): ?><span class="price">+<?= money_fmt($p) ?> ฿</span><?php endif; ?>
+              </label>
+            <?php endforeach; ?>
+          </div>
+        </div>
+
+        <div class="box span-2">
+          <div class="sec-title"><i class="bi bi-pencil-square"></i> หมายเหตุเพิ่มเติม</div>
+          <textarea class="form-control" name="note_free" rows="2" placeholder="เช่น ไม่ใส่ฝา งดหลอด ฯลฯ"><?= htmlspecialchars($selFree,ENT_QUOTES,'UTF-8') ?></textarea>
+        </div>
+
+        <div class="box">
+          <div class="sec-title justify-content-between">
+            <span><i class="bi bi-123"></i> จำนวน</span>
+            <small id="calc_total_hint" class="hint"></small>
+          </div>
+          <div class="qty-wrap" role="group" aria-label="ปรับจำนวน">
+            <button class="btn-step" type="button" id="qminus" aria-label="ลดจำนวน"><i class="bi bi-dash-lg"></i></button>
+            <input type="number" class="form-control" name="qty" id="qty" value="<?= (int)$currentQty ?>" min="1" style="max-width:110px">
+            <button class="btn-step" type="button" id="qplus" aria-label="เพิ่มจำนวน"><i class="bi bi-plus-lg"></i></button>
+          </div>
+          <div class="subnote mt-2"><i class="bi bi-info-circle"></i> ราคาสุทธิจริงจะคำนวณโปรโมชัน (ถ้ามี) ตอนเพิ่มลงออเดอร์</div>
+        </div>
+      </div>
+
+      <input type="hidden" name="note" id="note">
+      <div class="footer-actions">
+        <?php if(!$isPopup): ?>
+          <a href="front_store.php" class="btn btn-cancel"><i class="bi bi-x-circle"></i> ยกเลิก</a>
+        <?php else: ?>
+          <button type="button" class="btn btn-cancel" onclick="window.parent?.document.getElementById('menuModalClose')?.click()"><i class="bi bi-x-circle"></i> ยกเลิก</button>
         <?php endif; ?>
-
-        <!-- ค่าบวกเพิ่มจากท็อปปิง -->
-        <input type="hidden" name="addon_total" id="addon_total" value="0">
-
-        <div class="row">
-          <div class="col-md-6">
-            <div class="sec-title">ระดับความหวาน</div>
-            <?php $opts=['หวานน้อย','ปกติ','หวานมาก']; foreach($opts as $i=>$sv): $id='sweet'.($i+1); $checked=($selSweet===$sv)?'checked':''; ?>
-              <input type="radio" name="sweet" id="<?= $id ?>" value="<?= htmlspecialchars($sv,ENT_QUOTES,'UTF-8') ?>" <?= $checked ?>>
-              <label class="chip" for="<?= $id ?>"><?= htmlspecialchars($sv,ENT_QUOTES,'UTF-8') ?></label>
-            <?php endforeach; ?>
-
-            <div class="sec-title">น้ำแข็ง</div>
-            <?php $opts=['ไม่ใส่น้ำแข็ง','ปกติ','เยอะ']; foreach($opts as $i=>$iv): $id='ice'.($i+1); $checked=($selIce===$iv)?'checked':''; ?>
-              <input type="radio" name="ice" id="<?= $id ?>" value="<?= htmlspecialchars($iv,ENT_QUOTES,'UTF-8') ?>" <?= $checked ?>>
-              <label class="chip" for="<?= $id ?>"><?= htmlspecialchars($iv,ENT_QUOTES,'UTF-8') ?></label>
-            <?php endforeach; ?>
-
-            <div class="sec-title">ขนาด</div>
-            <?php $opts=['เล็ก','ธรรมดา','ใหญ่']; foreach($opts as $i=>$sv): $id='size'.($i+1); $checked=($selSize===$sv)?'checked':''; ?>
-              <input type="radio" name="size" id="<?= $id ?>" value="<?= htmlspecialchars($sv,ENT_QUOTES,'UTF-8') ?>" <?= $checked ?>>
-              <label class="chip" for="<?= $id ?>"><?= htmlspecialchars($sv,ENT_QUOTES,'UTF-8') ?></label>
-            <?php endforeach; ?>
-          </div>
-
-          <div class="col-md-6">
-            <div class="sec-title">ท็อปปิง (เลือกได้หลายอย่าง)</div>
-            <div class="option-grid">
-              <?php foreach($toppings as $i=>$tp):
-                $id='tp'.($i+1);
-                $checked=in_array($tp['name'],$selToppings,true)?'checked':'';
-                $p = (float)$tp['base_price'];
-              ?>
-                <input
-  type="checkbox"
-  name="toppings[]"
-  id="<?= $id ?>"
-  value="<?= (int)$tp['topping_id'] ?>"
-  data-title="<?= htmlspecialchars($tp['name'],ENT_QUOTES,'UTF-8') ?>"
-  data-price="<?= htmlspecialchars(number_format($p,2,'.',''),ENT_QUOTES,'UTF-8') ?>"
-  <?= $checked ?>
->
-
-                <label class="chip" for="<?= $id ?>">
-                  <span><?= htmlspecialchars($tp['name'],ENT_QUOTES,'UTF-8') ?></span>
-                  <?php if($p>0): ?><span class="price">+<?= money_fmt($p) ?> ฿</span><?php endif; ?>
-                </label>
-              <?php endforeach; ?>
-            </div>
-
-            <div class="sec-title">หมายเหตุเพิ่มเติม</div>
-            <textarea class="form-control" name="note_free" rows="3" placeholder="เช่น ไม่ใส่ฝา งดหลอด ฯลฯ"><?= htmlspecialchars($selFree,ENT_QUOTES,'UTF-8') ?></textarea>
-
-            <div class="sec-title d-flex align-items-center justify-content-between">
-              <span>จำนวน</span>
-              <small id="calc_total_hint" style="font-weight:900;color:#0D4071;opacity:.9"></small>
-            </div>
-            <input type="number" class="form-control" name="qty" id="qty" value="<?= (int)$currentQty ?>" min="1" style="max-width:160px">
-          </div>
-        </div>
-
-        <input type="hidden" name="note" id="note">
-        <div class="footer-actions">
-          <?php if(!$isPopup): ?>
-            <a href="front_store.php" class="btn btn-cancel">ยกเลิก</a>
-          <?php else: ?>
-            <button type="button" class="btn btn-cancel" onclick="window.parent?.document.getElementById('menuModalClose')?.click()">ยกเลิก</button>
-          <?php endif; ?>
-          <button type="submit" class="btn btn-save"><?= $editMode ? 'บันทึกการแก้ไข' : 'เพิ่มในออเดอร์' ?></button>
-        </div>
-      </form>
-    </div>
+        <button type="submit" class="btn btn-save">
+          <i class="bi <?= $editMode ? 'bi-check2-square' : 'bi-bag-plus' ?>"></i>
+          <?= $editMode ? 'บันทึกการแก้ไข' : 'เพิ่มในออเดอร์' ?>
+        </button>
+      </div>
+    </form>
   </div>
 </div>
 
@@ -238,20 +403,32 @@ body{ background:linear-gradient(135deg,#0D4071,#4173BD); color:#fff; font-famil
     (root.getElementById('note')||{}).value = parts.join(' | ');
     (root.getElementById('addon_total')||{}).value = money(addon);
 
-    // hint แสดงยอดต่อแก้ว
+    // hint แสดงยอดต่อแก้ว/รวม
     const qty = Math.max(1, parseInt((root.getElementById('qty')||{}).value||'1', 10));
     const perCup = basePrice + addon;
     const hint = root.getElementById('calc_total_hint');
     if(hint){ hint.textContent = `ต่อแก้ว: ${money(perCup)} ฿  •  รวม ~ ${money(perCup*qty)} ฿`; }
   }
 
-  // อัปเดตทุกครั้งที่เลือก/เปลี่ยน
+  // ปุ่ม +/- และอัปเดต
+  const qMinus = document.getElementById('qminus');
+  const qPlus  = document.getElementById('qplus');
+  const qtyInp = document.getElementById('qty');
+  qMinus?.addEventListener('click', ()=>{ const v=Math.max(1,(parseInt(qtyInp.value||'1',10)-1)); qtyInp.value=v; collectNoteAndAddon(); });
+  qPlus?.addEventListener('click',  ()=>{ const v=Math.max(1,(parseInt(qtyInp.value||'1',10)+1)); qtyInp.value=v; collectNoteAndAddon(); });
+
   root.querySelectorAll('input[name="toppings[]"]').forEach(el=> el.addEventListener('change', collectNoteAndAddon));
-  root.getElementById('qty')?.addEventListener('input', collectNoteAndAddon);
+  qtyInp?.addEventListener('input', collectNoteAndAddon);
   root.getElementById('menuForm')?.addEventListener('submit', collectNoteAndAddon);
 
   // init
   collectNoteAndAddon();
+
+  // ถ้าหน้านี้ถูกเปิดจาก parent ให้ดึงค่า data-theme มาใช้ เพื่อโทนตรงกับหน้าแม่
+  try{
+    const t = window.parent?.document?.documentElement?.getAttribute('data-theme');
+    if(t){ document.documentElement.setAttribute('data-theme', t); }
+  }catch(_){}
 })();
 </script>
 

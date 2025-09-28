@@ -1,12 +1,12 @@
 <?php
-// front_store/front_store.php — POS UI + modal popup + Voice Ready Notification + แสดงโปรโมชันต่อเมนู
+// front_store/front_store.php — POS UI + modal popup + Voice Ready Notification + แสดงโปรโมชันต่อเมนู + UI Icons
 // iPad/แท็บเล็ต: 3 คอลัมน์, เดสก์ท็อป: 5 คอลัมน์
 declare(strict_types=1);
 session_start();
 if (empty($_SESSION['uid'])) { header("Location: ../index.php"); exit; }
 
 require __DIR__ . '/../db.php';
-mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT); // ✅ เปิด error report ช่วยจับ SQL พัง
+mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
 $conn->set_charset('utf8mb4');
 
 /* ---------- Helpers ---------- */
@@ -66,7 +66,7 @@ function best_item_promo(mysqli $conn, int $menu_id, float $base_price): ?array 
     LIMIT 1
   ";
   $st = $conn->prepare($sql);
-  $st->bind_param('id', $menu_id, $base_price); // i = menu_id, d = base_price
+  $st->bind_param('id', $menu_id, $base_price);
   $st->execute();
   $r = $st->get_result()->fetch_assoc();
   $st->close();
@@ -85,19 +85,20 @@ function best_item_promo(mysqli $conn, int $menu_id, float $base_price): ?array 
     'name'     => (string)$r['name'],
     'type'     => (string)$r['discount_type'],
     'value'    => (float)$r['discount_value'],
-    'amount'   => (float)$amount, // ลดได้ต่อ 1 แก้ว/หน่วย
+    'amount'   => (float)$amount,
   ];
 }
 
 /* ---------- ฟังก์ชันเรนเดอร์ตะกร้า (ใช้ทั้งหน้า + AJAX) ---------- */
 function render_cart_box(): string {
+  global $conn; // ใช้เชื่อมต่อฐานข้อมูลเพื่อดึง "ราคาเมนูฐาน"
   ob_start();
   ?>
   <div class="pos-card cart">
     <div class="d-flex align-items-center justify-content-between p-3 pt-3 pb-0">
-      <div class="h5 mb-0 font-weight-bold">ออเดอร์</div>
+      <div class="h5 mb-0 font-weight-bold"><i class="bi bi-basket2"></i> ออเดอร์</div>
       <a class="btn btn-sm btn-outline-light" href="front_store.php?action=clear"
-         onclick="return confirm('ล้างออเดอร์ทั้งหมด?');">ล้าง</a>
+         onclick="return confirm('ล้างออเดอร์ทั้งหมด?');"><i class="bi bi-trash3"></i> ล้าง</a>
     </div>
     <hr class="my-2" style="border-color:rgba(255,255,255,.25)">
     <div class="p-2 pt-0">
@@ -117,24 +118,48 @@ function render_cart_box(): string {
             </thead>
             <tbody>
             <?php
-              $gross_total = 0.0;      // รวมหลังหักโปรแล้ว (เพราะบันทึกราคา/หน่วยแบบหักแล้ว)
-              $discount_total = 0.0;   // ใช้สำหรับ "แสดงว่าประหยัดไปเท่าไหร่" เท่านั้น
+              $gross_total    = 0.0;   // รวมหลังหักโปรแล้ว (สุทธิ)
+              $discount_total = 0.0;   // ส่วนลดรวม
+              $before_total   = 0.0;   // รวมก่อนหักโปร
 
+              // เตรียม statement ดึงราคาเมนูฐาน
+              $stmtBase = $conn->prepare("SELECT price FROM menu WHERE menu_id = ?");
               foreach($_SESSION['cart'] as $key=>$it):
                 $qty = (int)($it['qty'] ?? 0);
-                $unit_price = (float)($it['price'] ?? 0.0); // เป็นราคาหลังหักโปรแล้ว
-                $line = $unit_price * $qty;
-                $gross_total += $line;
-
-                // ดึงข้อมูลโปรจาก session (ถ้ามี)
+                $unit_price = (float)($it['price'] ?? 0.0); // หลังหักโปร/หน่วย
                 $promo_name = (string)($it['promo_name'] ?? '');
-                $unit_discount = (float)($it['unit_discount'] ?? 0.0);
-                $line_discount = $unit_discount * $qty;
-                if ($unit_discount > 0) { $discount_total += $line_discount; }
+                $unit_discount = (float)($it['unit_discount'] ?? 0.0); // ส่วนลด/หน่วย
+
+                // ราคาเต็ม/หน่วยก่อนหักโปร (ราคาเมนูฐาน + ท็อปปิง)
+                $unit_before = $unit_price + $unit_discount;
+
+                // ดึง "ราคาเมนูฐาน" เพื่อคำนวณ "ท็อปปิง"
+                $base_price = 0.0;
+                $mid = (int)($it['menu_id'] ?? 0);
+                if ($mid > 0) {
+                  $stmtBase->bind_param("i", $mid);
+                  $stmtBase->execute();
+                  $res = $stmtBase->get_result();
+                  if ($row = $res->fetch_row()) $base_price = (float)$row[0];
+                  $res->free();
+                }
+
+                // ท็อปปิงต่อหน่วย = (ราคาเต็มก่อนหักโปร/หน่วย) - (ราคาเมนูฐาน)
+                $topping_unit = max(0.0, $unit_before - $base_price);
+                $topping_line = $topping_unit * $qty;
+
+                $line_after  = $unit_price  * $qty;       // รวมสุทธิแถวนี้
+                $line_disc   = $unit_discount * $qty;     // ส่วนลดรวมแถวนี้
+                $line_before = $unit_before * $qty;       // รวมก่อนหักโปรแถวนี้
+
+                $gross_total    += $line_after;
+                $discount_total += $line_disc;
+                $before_total   += $line_before;
             ?>
               <tr>
                 <td class="align-middle">
-                  <div class="font-weight-bold" style="color:#0D4071">
+                  <div class="font-weight-bold item-title">
+                    <i class="bi bi-cup-hot"></i>
                     <?= htmlspecialchars($it['name'],ENT_QUOTES,'UTF-8') ?>
                   </div>
 
@@ -151,12 +176,23 @@ function render_cart_box(): string {
                     </div>
                   <?php endif; ?>
 
+                  <!-- แสดงราคาท็อปปิง: ต่อหน่วย และรวมตามจำนวน -->
+                  <?php if ($topping_unit > 0): ?>
+                    <div class="mt-1">
+                      <span class="note-pill" title="คิดจาก (ราคาเต็มก่อนหักโปร) - (ราคาเมนูฐาน)">
+                        <i class="bi bi-egg-fried"></i>
+                        ท็อปปิง: +<?= number_format($topping_unit,2) ?> ฿/หน่วย
+                        
+                      </span>
+                    </div>
+                  <?php endif; ?>
+
                   <?php if ($promo_name !== '' && $unit_discount > 0): ?>
                     <div class="mt-1">
                       <span class="note-pill" title="ส่วนลดโปรโมชันถูกหักแล้วในราคาต่อหน่วย">
+                        <i class="bi bi-tags-fill"></i>
                         โปรฯ: <?= htmlspecialchars($promo_name,ENT_QUOTES,'UTF-8') ?>
-                        — ลด <?= number_format($unit_discount,2) ?> ฿/ชิ้น
-                        × <?= $qty ?> = <strong>-<?= number_format($line_discount,2) ?> ฿</strong>
+                        — ลด <?= number_format($unit_discount,2) ?> ฿/หน่วย
                       </span>
                     </div>
                   <?php endif; ?>
@@ -166,74 +202,82 @@ function render_cart_box(): string {
                 <td class="text-center align-middle">
                   <input class="form-control form-control-sm" type="number"
                          name="qty[<?= htmlspecialchars($key,ENT_QUOTES,'UTF-8') ?>]"
-                         value="<?= $qty ?>" min="0">
+                         value="<?= $qty ?>" min="0" aria-label="จำนวน">
                 </td>
-                <td class="text-right align-middle"><?= number_format($line,2) ?></td>
+                <td class="text-right align-middle"><?= number_format($line_after,2) ?></td>
                 <td class="text-right align-middle">
                   <div class="btn-group btn-group-sm">
-                    <a class="btn btn-outline-primary js-edit"
+                    <a class="btn btn-outline-primary js-edit" title="แก้ไข"
                        data-menu-id="<?= (int)$it['menu_id'] ?>"
                        data-key="<?= htmlspecialchars($key,ENT_QUOTES,'UTF-8') ?>"
-                       href="menu_detail.php?id=<?= (int)$it['menu_id'] ?>&edit=1&key=<?= urlencode($key) ?>"
-                       title="แก้ไข">
+                       href="menu_detail.php?id=<?= (int)$it['menu_id'] ?>&edit=1&key=<?= urlencode($key) ?>">
                       <i class="bi bi-pencil-square"></i>
                     </a>
                     <a class="btn btn-outline-danger" title="ลบ"
-                       href="front_store.php?action=remove&key=<?= urlencode($key) ?>"
-                       onclick="return confirm('ลบรายการนี้?');">
-                      <i class="bi bi-trash"></i>
-                    </a>
+   href="front_store.php?action=remove&key=<?= urlencode($key) ?>"
+   onclick="return confirm('ลบรายการนี้?');">
+  <i class="bi bi-trash"></i>
+</a>
+
                   </div>
                 </td>
               </tr>
-            <?php endforeach; ?>
+            <?php endforeach; $stmtBase->close(); ?>
             </tbody>
           </table>
         </div>
       </form>
 
       <?php
-        $gross_total = $gross_total ?? 0.0;
+        $before_total   = $before_total   ?? 0.0;
         $discount_total = $discount_total ?? 0.0;
-        // ราคาจริงที่ต้องจ่าย = gross_total (เพราะ unit_price ถูกหักโปรแล้ว)
-        $net_total = $gross_total;
+        $gross_total    = $gross_total    ?? 0.0;
+        $net_total = $gross_total; // สุทธิหลังหักโปร
       ?>
       </div>
 
       <!-- สรุปยอด -->
-      <div class="p-3 pt-0" style="background:#fff;border-top:1px solid #e7eefc;border-bottom-left-radius:14px;border-bottom-right-radius:14px">
-        <div class="d-flex justify-content-between">
-          <div class="font-weight-bold" style="color:#0D4071">ยอดรวมหลังหักโปร</div>
-          <div class="font-weight-bold" style="color:#0D4071"><?= number_format($gross_total,2) ?> ฿</div>
-        </div>
-        <div class="d-flex justify-content-between" style="margin-top:6px">
-          <div class="font-weight-bold text-success">โปรนี้ช่วยประหยัด</div>
-          <div class="font-weight-bold text-success">-<?= number_format($discount_total,2) ?> ฿</div>
-        </div>
-        <hr class="my-2">
-        <div class="d-flex justify-content-between">
-          <div class="h6 mb-0" style="font-weight:900;color:#0D4071">ยอดสุทธิ</div>
-          <div class="h5 mb-0" style="font-weight:900;color:#2c8bd6"><?= number_format($net_total,2) ?> ฿</div>
-        </div>
-        <small class="text-muted d-block mt-1">* ยอดสุทธิด้านบนเป็นยอดที่หักโปรแล้ว</small>
-      </div>
+      <div class="summary-card p-3 pt-0">
+  <div class="summary-row">
+    <div class="tag"><i class="bi bi-cash-coin"></i> ยอดรวมก่อนหักโปร</div>
+    <div class="font-weight-bold"><?= number_format($before_total,2) ?> ฿</div>
+  </div>
+
+  <div class="summary-row" style="margin-top:6px">
+    <div class="tag">โปรนี้ช่วยประหยัด</div>
+   <div class="font-weight-bold">-<?= number_format($discount_total,2) ?> ฿</div>
+  </div>
+
+  <hr class="my-2">
+
+  <div class="summary-row">
+    <div class="tag" style="font-weight:900"><i class="bi bi-check2-circle"></i> ยอดสุทธิ</div>
+    <div class="h5 mb-0" style="font-weight:900"><?= number_format($net_total,2) ?> ฿</div>
+  </div>
+
+  <small class="d-block mt-1">* ยอดสุทธิคือราคาหลังหักโปรแล้ว</small>
+</div>
+
 
       <div class="p-3">
         <div class="d-flex">
-          <button class="btn btn-light mr-2" form="frmCart" style="font-weight:800">อัปเดตจำนวน</button>
+          <button class="btn btn-light mr-2" form="frmCart" style="font-weight:800"><i class="bi bi-arrow-repeat"></i> อัปเดตจำนวน</button>
           <form method="post" class="m-0 flex-fill">
             <input type="hidden" name="action" value="checkout">
-            <button class="btn btn-success btn-block" id="btnCheckout" style="font-weight:900; letter-spacing:.2px">สั่งออเดอร์ (F2)</button>
+            <button class="btn btn-success btn-block" id="btnCheckout" style="font-weight:900; letter-spacing:.2px">
+              <i class="bi bi-bag-check"></i> สั่งออเดอร์ (F2)
+            </button>
           </form>
         </div>
       </div>
     <?php else: ?>
-      <div class="px-3 pb-3 text-light" style="opacity:.9">ยังไม่มีสินค้าในออเดอร์</div>
+      <div class="px-3 pb-3 text-light" style="opacity:.9"><i class="bi bi-emoji-neutral"></i> ยังไม่มีสินค้าในออเดอร์</div>
     <?php endif; ?>
   </div>
   <?php
   return ob_get_clean();
 }
+
 
 /* ---------- Cart session ---------- */
 if (!isset($_SESSION['cart'])) $_SESSION['cart'] = [];
@@ -283,9 +327,7 @@ if ($action === 'upload_slip') {
   if (!$order) { echo json_encode(['ok'=>false,'msg'=>'ไม่พบออเดอร์']); exit; }
 
   if (!isset($_FILES['slip']) || $_FILES['slip']['error'] !== UPLOAD_ERR_OK) {
-    echo json_encode(['ok'=>false,'msg'=>'อัปโหลดไฟล์ไม่สำเร็จ']); exit;
-  }
-
+    echo json_encode(['ok'=>false,'msg'=>'อัปโหลดไฟล์ไม่สำเร็จ']); exit; }
   $conn->query("
   CREATE TABLE IF NOT EXISTS payment_slips (
     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -386,7 +428,7 @@ if ($action === 'add') {
   if ($item) {
     $picked = isset($_POST['toppings']) ? (array)$_POST['toppings'] : [];
     $picked_ids = array_values(array_filter(array_map('intval', $picked)));
-    $tp = toppings_info($conn, $menu_id, $picked_ids); // ['extra'=>float, 'names'=>string[]]
+    $tp = toppings_info($conn, $menu_id, $picked_ids);
 
     if (!empty($tp['names'])) {
       if (mb_stripos($note, 'ท็อปปิง:') === false) {
@@ -404,7 +446,7 @@ if ($action === 'add') {
     $appliedPromo = best_item_promo($conn, (int)$menu_id, $base_price);
     $unit_discount = $appliedPromo ? (float)$appliedPromo['amount'] : 0.0;
 
-    // ราคาต่อหน่วยจริง = (ราคาเมนูฐาน + ท็อปปิง) - ส่วนลด (ไม่ติดลบ)
+    // ราคาต่อหน่วยจริง = (ราคาเมนูฐาน + ท็อปปิง) - ส่วนลด
     $unit_price = max(0.0, $base_price + $addon_effective - $unit_discount);
 
     $new_key = cart_key($menu_id, $note);
@@ -496,9 +538,8 @@ if ($action === 'checkout' && !empty($_SESSION['cart'])) {
   $order_id = $stmt->insert_id;
   $stmt->close();
 
-  // บันทึกรายการ + promo_id (ใส่ NULL ถ้าไม่มีโปร)
   foreach ($_SESSION['cart'] as $row) {
-    $line = ((int)$row['qty']) * ((float)$row['price']); // price = หลังหักโปรแล้ว
+    $line = ((int)$row['qty']) * ((float)$row['price']);
     $promoId = $row['promo_id'] ?? null;
 
     if ($promoId === null) {
@@ -544,8 +585,6 @@ $promoJoin = "
 LEFT JOIN (
   SELECT
     pi.menu_id,
-
-    -- id โปรที่ดีที่สุด
     SUBSTRING_INDEX(
       GROUP_CONCAT(
         p.promo_id ORDER BY
@@ -557,8 +596,6 @@ LEFT JOIN (
       ),
       ',', 1
     ) AS best_promo_id,
-
-    -- ชื่อโปรที่ดีที่สุด
     SUBSTRING_INDEX(
       GROUP_CONCAT(
         p.name ORDER BY
@@ -570,8 +607,6 @@ LEFT JOIN (
       ),
       ',', 1
     ) AS promo_name,
-
-    -- ประเภทส่วนลด (PERCENT/FIXED) ของโปรที่ดีที่สุด
     SUBSTRING_INDEX(
       GROUP_CONCAT(
         p.discount_type ORDER BY
@@ -583,8 +618,6 @@ LEFT JOIN (
       ),
       ',', 1
     ) AS discount_type,
-
-    -- ค่าที่ใช้ลด (เช่น 5.00 ถ้าเป็นเปอร์เซ็นต์ก็คือ 5%)
     SUBSTRING_INDEX(
       GROUP_CONCAT(
         p.discount_value ORDER BY
@@ -596,16 +629,12 @@ LEFT JOIN (
       ),
       ',', 1
     ) AS discount_value,
-
-    -- จำนวนเงินที่ลดได้ (คำนวณบนราคาเมนู m.price)
     MAX(
       LEAST(
         CASE WHEN p.discount_type='PERCENT' THEN (p.discount_value/100.0)*m.price ELSE p.discount_value END,
         COALESCE(p.max_discount, 999999999)
       )
     ) AS discount_amount,
-
-    -- ขอบเขตโปร (ITEM/ORDER)
     SUBSTRING_INDEX(
       GROUP_CONCAT(
         p.scope ORDER BY
@@ -617,8 +646,6 @@ LEFT JOIN (
       ),
       ',', 1
     ) AS promo_scope,
-
-    -- เวลาเริ่ม/จบของโปรที่ดีที่สุด
     SUBSTRING_INDEX(
       GROUP_CONCAT(
         DATE_FORMAT(p.start_at, '%Y-%m-%d %H:%i:%s') ORDER BY
@@ -630,7 +657,6 @@ LEFT JOIN (
       ),
       ',', 1
     ) AS promo_start_at,
-
     SUBSTRING_INDEX(
       GROUP_CONCAT(
         DATE_FORMAT(p.end_at, '%Y-%m-%d %H:%i:%s') ORDER BY
@@ -642,8 +668,6 @@ LEFT JOIN (
       ),
       ',', 1
     ) AS promo_end_at,
-
-    -- สถานะโปร (1=active)
     SUBSTRING_INDEX(
       GROUP_CONCAT(
         p.is_active ORDER BY
@@ -655,7 +679,6 @@ LEFT JOIN (
       ),
       ',', 1
     ) AS promo_is_active
-
   FROM promotion_items pi
   JOIN promotions p ON p.promo_id = pi.promo_id
   JOIN menu m       ON m.menu_id = pi.menu_id
@@ -664,17 +687,16 @@ LEFT JOIN (
 ) ap ON ap.menu_id = m.menu_id
 ";
 
-
 /* ----- เมนู (ยอดนิยม/ปกติ) พร้อมคอลัมน์โปรโมชัน ----- */
 if ($isTop) {
-  // ✅ ยอดนิยม: ดึงทุกเมนูที่ active แล้วคำนวณยอดขาย (ถ้าไม่เคยขาย = 0)
   $sql = "SELECT 
             m.menu_id, m.name, m.price, m.image, c.category_name,
             (SELECT COALESCE(SUM(d.quantity),0)
                FROM order_details d
               WHERE d.menu_id = m.menu_id
             ) AS total_sold,
-            ap.best_promo_id, ap.promo_name, ap.discount_type, ap.discount_value, ap.discount_amount
+            ap.best_promo_id, ap.promo_name, ap.discount_type, ap.discount_value, ap.discount_amount,
+            ap.promo_scope, ap.promo_start_at, ap.promo_end_at, ap.promo_is_active
           FROM menu m
           LEFT JOIN categories c ON m.category_id = c.category_id
           $promoJoin
@@ -699,27 +721,23 @@ if ($isTop) {
     $menus = $conn->query($sql);
   }
 
-  // ✅ Fallback: ถ้าไม่มีเมนูเลย → ดึงทั้งหมดแทน (ใส่เงื่อนไขก่อน ORDER BY เสมอ)
   if ($menus && $menus->num_rows === 0) {
     $sqlAll = "SELECT 
                  m.menu_id, m.name, m.price, m.image, c.category_name,
-                 ap.best_promo_id, ap.promo_name, ap.discount_type, ap.discount_value, ap.discount_amount
+                 ap.best_promo_id, ap.promo_name, ap.discount_type, ap.discount_value, ap.discount_amount,
+                 ap.promo_scope, ap.promo_start_at, ap.promo_end_at, ap.promo_is_active
                FROM menu m
                LEFT JOIN categories c ON m.category_id=c.category_id
                $promoJoin
                WHERE m.is_active = 1";
-
     $typesAll = ''; 
     $paramsAll = [];
-
     if ($keyword !== '') {
       $sqlAll   .= " AND m.name LIKE ?";
       $typesAll .= 's';
       $paramsAll[] = '%'.$keyword.'%';
     }
-
     $sqlAll .= " ORDER BY m.menu_id";
-
     if ($typesAll !== '') {
       $stmt = $conn->prepare($sqlAll);
       $stmt->bind_param($typesAll, ...$paramsAll);
@@ -732,10 +750,10 @@ if ($isTop) {
   }
 
 } else {
-  // ✅ ปกติ: ตามหมวด/คำค้น
   $sql = "SELECT 
             m.menu_id, m.name, m.price, m.image, c.category_name,
-            ap.best_promo_id, ap.promo_name, ap.discount_type, ap.discount_value, ap.discount_amount
+            ap.best_promo_id, ap.promo_name, ap.discount_type, ap.discount_value, ap.discount_amount,
+            ap.promo_scope, ap.promo_start_at, ap.promo_end_at, ap.promo_is_active
           FROM menu m 
           LEFT JOIN categories c ON m.category_id=c.category_id
           $promoJoin
@@ -766,108 +784,664 @@ if ($isTop) {
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
 
 <style>
-  /* PSU Radio Style */
-.psu-radio{display:inline-flex;align-items:center;background:#f6faff;border:2px solid #29ABE2;border-radius:999px;padding:8px 14px;font-weight:700;color:#0D4071;cursor:pointer;transition:all .2s}
-.psu-radio input{display:none}
-.psu-radio span{font-size:.95rem}
-.psu-radio:hover{background:#eaf4ff;border-color:#0094B3}
-.psu-radio input:checked + span{color:#fff;background:linear-gradient(180deg,#4173BD,#0D4071);padding:6px 12px;border-radius:999px}
-
-/* Payment Theme */
-#uploadZone,#cashZone{font-family:"Segoe UI",Tahoma,sans-serif;color:#0D4071}
-#uploadZone label,#cashZone label{font-weight:700;color:#4173BD}
-#dropzone{border:2px dashed #29ABE2;background:#f6faff;color:#0D4071;transition:all .2s}
-#dropzone:hover{background:#e9f3ff;border-color:#0094B3}
-#dropzone .lead{color:#0D4071;font-weight:800}
-#dropzone .small{color:#6b7280}
-#btnChoose{background:linear-gradient(180deg,#29ABE2,#0094B3);border:1px solid #0D4071;font-weight:700}
-#btnChoose:hover{background:#4EC5E0;color:#002b4a}
-#btnUpload,#btnCashConfirm{background:linear-gradient(180deg,#4173BD,#0D4071);border:none;font-weight:900;letter-spacing:.5px}
-#btnUpload:hover,#btnCashConfirm:hover{background:linear-gradient(180deg,#29ABE2,#0094B3)}
-#btnSlipCancel,#btnSlipCancel2{border:1px solid #BBB4D8;color:#0D4071;font-weight:700}
-#btnSlipCancel:hover,#btnSlipCancel2:hover{background:#eaf4ff}
-#cashZone .alert-info{background:#eaf4ff;border:1px solid #29ABE2;color:#0D4071;font-weight:700;border-radius:12px}
-
-.topbar-actions{gap:8px}
-.topbar .btn-primary{background:linear-gradient(180deg,#3aa3ff,#1f7ee8);border-color:#1669c9;font-weight:800}
-@media (max-width:576px){.topbar{flex-wrap:wrap;gap:8px}.topbar-actions{width:100%;justify-content:flex-end}}
-
-/* Modal */
-.psu-modal{position:fixed;inset:0;display:none;z-index:1050}
-.psu-modal.is-open{display:block}
-.psu-modal__backdrop{position:absolute;inset:0;background:rgba(0,0,0,.45);backdrop-filter:blur(2px)}
-.psu-modal__dialog{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:min(1020px,96vw);max-height:92vh;overflow:auto;background:#fff;border-radius:20px;box-shadow:0 22px 66px rgba(0,0,0,.45);border:1px solid #cfe3ff}
-.psu-modal__body{padding:0}
-.psu-modal__close{position:absolute;right:12px;top:8px;border:0;background:transparent;font-size:32px;font-weight:900;line-height:1;cursor:pointer;color:#08345c}
-
-/* Theme */
-:root{
-  --psu-deep-blue:#0D4071; --psu-ocean-blue:#4173BD; --psu-andaman:#0094B3;
-  --psu-sky:#29ABE2; --psu-river:#4EC5E0; --psu-sritrang:#BBB4D8;
-  --bg-grad1: var(--psu-deep-blue); --bg-grad2: var(--psu-ocean-blue);
-  --ink:#0b2746; --shadow:0 14px 32px rgba(0,0,0,.24); --ring:#7dd3fc;
+  /* ริบบอนโปรโมชัน: teal เด่นบนพื้นกราไฟต์ */
+.product-mini .ribbon{
+  background:linear-gradient(180deg,#00ADB5,#0A8A90);
 }
+
+/* ปุ่ม “เลือก”: teal → aqua ไล่เฉด */
+.product-mini .quick{
+  background:linear-gradient(180deg,var(--brand-500),var(--brand-400));
+  border:1px solid color-mix(in oklab, var(--brand-700), black 12%);
+}
+
+/* ตัวหนังสือราคาพิเศษให้ตัดกับพื้น */
+.product-mini .pprice{ color: var(--brand-500); }
+
+/* เส้นตาราง/เส้นคั่นให้เข้ากับโทน */
+.table-cart thead th{ border-bottom:2px solid color-mix(in oklab, var(--brand-500), white 45%) }
+.table-cart td,.table-cart th{ border-color: color-mix(in oklab, var(--brand-700), white 65%) !important }
+
+/* =============================
+   Blue Cafe – Refined UI Theme
+   - ไม่ใช้พื้นหลัง "ขาวล้วน"
+   - เพิ่ม Light/Dark Theme
+   - เน้นการอ่าน + ปุ่มกดเด่น
+   ============================= */
+
+/* ---------- Design Tokens ---------- */
+:root{
+  /* ===== EXISTING ===== */
+  --text-strong:#e8f1ff;
+  --text-normal:#d2e4ff;
+  --text-muted:#9cb6d8;
+
+  --bg-grad1:#0a1a30;
+  --bg-grad2:#0D4071;
+
+  --surface:#0f223a;
+  --surface-2:#0a1f36;
+  --surface-3:#122a47;
+  --ink:#eaf3ff;
+  --ink-muted:#b2c5e3;
+
+  --shadow-lg:0 22px 66px rgba(0,0,0,.55);
+  --shadow:   0 14px 32px rgba(0,0,0,.42);
+
+  /* ===== NEW: brand palette for the base (light) theme ===== */
+  --brand-900:#eaf3ff;
+  --brand-700:#b2c5e3;
+  --brand-500:#2c8bd6;   /* ฟ้าไฮไลต์ที่ใช้ในยอดสุทธิ */
+  --brand-400:#5cb0ff;
+  --brand-300:#a6d3ff;
+
+  /* mapping สำหรับปุ่ม gradient ที่อิง aqua-* */
+  --aqua-500: var(--brand-500);
+  --aqua-400: var(--brand-400);
+
+  /* controls */
+  --radius:14px;
+  --ring: color-mix(in oklab, var(--brand-400), white 40%);
+}
+
+
+
+
+/* ---------- Dark Theme ---------- */
+:root[data-theme="dark"]{
+  /* Teal-Graphite Dark */
+  --text-strong:#F4F7F8;
+  --text-normal:#E6EBEE;
+  --text-muted:#B9C2C9;
+
+  --bg-grad1:#222831;    /* graphite deep */
+  --bg-grad2:#393E46;    /* graphite */
+
+  --surface:#1C2228;     /* not pure black */
+  --surface-2:#232A31;
+  --surface-3:#2B323A;
+  --ink:#F4F7F8;
+  --ink-muted:#CFEAED;
+
+  --brand-900:#EEEEEE;   /* for badges on dark */
+  --brand-700:#BFC6CC;
+  --brand-500:#00ADB5;   /* accent unchanged */
+  --brand-400:#27C8CF;
+  --brand-300:#73E2E6;
+
+  --aqua-500:#00ADB5;
+  --aqua-400:#5ED8DD;
+  --mint-300:#223037;
+  --violet-200:#5C6A74;
+
+  --shadow-lg:0 22px 66px rgba(0,0,0,.55);
+  --shadow:   0 14px 32px rgba(0,0,0,.42);
+}
+
+
+/* ---------- Page Base ---------- */
 html,body{height:100%}
-body{background:linear-gradient(135deg,var(--bg-grad1),var(--bg-grad2));color:#fff;font-family:"Segoe UI",Tahoma,Arial,sans-serif}
+body{
+  background:linear-gradient(135deg,var(--bg-grad1),var(--bg-grad2));
+  color:var(--ink);
+  font-family: "Segoe UI", Tahoma, Arial, sans-serif;
+}
 
-/* Layout */
+/* ---------- Layout Shell ---------- */
 .pos-shell{padding:12px;max-width:1600px;margin:0 auto;}
-.topbar{position:sticky;top:0;z-index:50;padding:12px 16px;border-radius:14px;background:rgba(13,64,113,.92);backdrop-filter:blur(6px);border:1px solid rgba(187,180,216,.25);box-shadow:0 8px 20px rgba(0,0,0,.18)}
-.brand{font-weight:900;letter-spacing:.3px}
+.topbar{
+  position:sticky; top:0; z-index:50;
+  padding:12px 16px; border-radius:14px;
+  background:color-mix(in oklab, var(--surface), black 6%);
+  backdrop-filter:blur(6px);
+  border:1px solid color-mix(in oklab, var(--violet-200), black 10%);
+  box-shadow:0 8px 20px rgba(0,0,0,.18)
+}
+.brand{color:var(--text-strong); font-weight:900; letter-spacing:.3px}
+.brand i{opacity:.95; margin-right:6px}
 
-/* Buttons */
-.btn-ghost{background:var(--psu-andaman);border:1px solid #063d63;color:#fff;font-weight:700}
-.btn-ghost:hover{background:var(--psu-sky);color:#002b4a}
+/* ---------- Buttons ---------- */
+.btn-ghost{
+  background:linear-gradient(180deg,var(--aqua-400),var(--aqua-500));
+  border:1px solid color-mix(in oklab, var(--brand-700), black 10%);
+  color:#fff; font-weight:800
+}
+.btn-ghost:hover{filter:brightness(1.05)}
 .btn-primary,.btn-success{font-weight:800}
 
-/* Chips & card */
-.pos-card{background:rgba(255,255,255,.08);border:1px solid var(--psu-sritrang);border-radius:16px;box-shadow:var(--shadow)}
-.chips a{display:inline-flex;align-items:center;gap:6px;padding:7px 14px;margin:0 8px 10px 0;border-radius:999px;border:1px solid var(--psu-ocean-blue);color:#fff;text-decoration:none;font-weight:700;background:rgba(255,255,255,.05)}
-.chips a.active{background:linear-gradient(180deg,var(--psu-sky),var(--psu-river));color:#062d4f;border-color:#073c62;box-shadow:0 8px 18px rgba(0,0,0,.15)}
+.topbar .btn-primary{
+  background:linear-gradient(180deg,#3aa3ff,#1f7ee8);
+  border-color:#1669c9;
+}
+
+/* ---------- Chips / Filters ---------- */
+.pos-card{
+  background:color-mix(in oklab, var(--surface), white 6%);
+  border:1px solid color-mix(in oklab, var(--violet-200), black 12%);
+  border-radius:var(--radius); box-shadow:var(--shadow)
+}
+.chips a{
+  display:inline-flex; align-items:center; gap:8px;
+  padding:7px 14px; margin:0 8px 10px 0; border-radius:999px;
+  border:1px solid color-mix(in oklab, var(--brand-500), black 8%);
+  color:var(--text-strong); text-decoration:none; font-weight:800;
+  background:color-mix(in oklab, var(--surface), white 8%);
+  transition:transform .12s, box-shadow .12s
+}
+.chips a .bi{font-size:1.05rem}
+.chips a.active{
+  background:linear-gradient(180deg,var(--brand-400),var(--mint-300));
+  color:#03203e; border-color:#073c62;
+  box-shadow:0 8px 18px rgba(0,0,0,.15)
+}
 .chips a:hover{transform:translateY(-1px)}
 
-/* Search */
-.searchbox{background:#fff;border:2px solid var(--psu-ocean-blue);color:#000;border-radius:999px;padding:.4rem .9rem;min-width:260px}
-.searchbox:focus{box-shadow:0 0 0 .2rem rgba(41,171,226,.35)}
+/* ---------- Search ---------- */
+.search-wrap{ position:relative; display:inline-block; }
+.search-wrap .bi{ position:absolute; left:12px; top:50%; transform:translateY(-50%); color:var(--text-muted) }
+.search-wrap .searchbox{
+  background:var(--surface);
+  border:2px solid color-mix(in oklab, var(--brand-500), white 10%);
+  color:var(--ink);
+  border-radius:999px; padding:.42rem .9rem .42rem 36px; min-width:260px
+}
+.searchbox:focus{box-shadow:0 0 0 .18rem color-mix(in oklab, var(--aqua-500), white 45%)}
 
-/* Grid */
-.menu-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;padding:12px}
+/* ---------- Grid ---------- */
+.menu-grid{
+  display:grid; grid-template-columns:repeat(5,1fr); gap:12px; padding:12px
+}
 @media (min-width:768px) and (max-width:1399px){.menu-grid{grid-template-columns:repeat(3,1fr)}}
 @media (max-width:767px){.menu-grid{grid-template-columns:repeat(2,1fr)}}
 
-.product-mini{background:#fff;border:1px solid #e3ecff;border-radius:14px;overflow:hidden;color:inherit;text-decoration:none;display:flex;flex-direction:column;height:100%;transition:transform .12s,box-shadow .12s,border-color .12s}
-.product-mini:focus,.product-mini:hover{transform:translateY(-2px);border-color:#bed7ff;box-shadow:0 10px 20px rgba(0,0,0,.16);outline:none}
-.product-mini .thumb{width:100%;height:120px;object-fit:cover;background:#eaf4ff}
+/* ---------- Product Card ---------- */
+.product-mini{
+  position:relative; background:var(--surface);
+  border:1px solid color-mix(in oklab, var(--violet-200), black 8%);
+  border-radius:14px; overflow:hidden; color:inherit; text-decoration:none;
+  display:flex; flex-direction:column; height:100%;
+  transition:transform .12s, box-shadow .12s, border-color .12s
+}
+.product-mini:focus,.product-mini:hover{
+  transform:translateY(-2px);
+  border-color:color-mix(in oklab, var(--brand-300), black 8%);
+  box-shadow:0 10px 20px rgba(0,0,0,.16); outline:none
+}
+.product-mini .thumb{
+  width:100%; height:120px; object-fit:cover;
+  background:color-mix(in oklab, var(--surface-2), white 8%)
+}
+.product-mini .ribbon{
+  position:absolute; left:-6px; top:10px;
+  background:linear-gradient(180deg,#2ecc71,#1b9c4a);
+  color:#fff; padding:6px 10px; font-weight:900; font-size:.8rem; letter-spacing:.2px;
+  border-radius:0 10px 10px 0; box-shadow:0 6px 14px rgba(0,0,0,.18)
+}
+.product-mini .ribbon i{ margin-right:6px; }
 .product-mini .meta{padding:10px 12px 12px}
-.product-mini .pname{font-weight:900;color:#0D4071;line-height:1.15;font-size:1.0rem;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:2.3em}
-.product-mini .row2{display:flex;align-items:center;justify-content:space-between;margin-top:8px}
-.product-mini .pprice{font-weight:900;color:#29ABE2;font-size:1.05rem;letter-spacing:.2px}
-.product-mini .quick{font-size:.85rem;font-weight:800;padding:6px 12px;border-radius:999px;background:#0094B3;border:1px solid #0a3e62;color:#fff}
-.product-mini .quick:hover{background:#29ABE2;color:#002a48}
+.product-mini .pname{
+  font-weight:900; color:var(--text-strong); line-height:1.15; font-size:1.0rem;
+  display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; min-height:2.3em
+}
+.product-mini .row2{display:flex; align-items:center; justify-content:space-between; margin-top:8px}
+.product-mini .pprice{font-weight:900; color:var(--brand-400); font-size:1.05rem; letter-spacing:.2px}
+.product-mini .quick{
+  font-size:.85rem; font-weight:800; padding:6px 12px; border-radius:999px;
+  background:linear-gradient(180deg,var(--aqua-400),var(--aqua-500));
+  border:1px solid color-mix(in oklab, var(--brand-700), black 10%); color:#fff;
+  transition:transform .08s, filter .12s
+}
+.product-mini:hover .quick{ transform:translateY(-1px); }
+.product-mini .text-muted{ color:var(--text-muted)!important }
 
-/* Cart */
-.cart{position:sticky;top:82px}
-.table-cart{color:#0b2746;background:#fff;border-radius:12px;overflow:hidden;table-layout:auto}
-.table-cart thead th{background:#f5f9ff;color:#06345c;border-bottom:2px solid #e7eefc;font-weight:800}
-.table-cart td,.table-cart th{border-color:#e7eefc!important}
+/* ---------- Cart ---------- */
+.cart{position:sticky; top:82px}
+.table-cart{
+  color:var(--text-normal); background:var(--surface);
+  border-radius:12px; overflow:hidden; table-layout:auto
+}
+.table-cart thead th{
+  background:var(--surface-2); color:var(--text-strong);
+  border-bottom:2px solid color-mix(in oklab, var(--brand-400), white 40%); font-weight:800
+}
+.table-cart td,.table-cart th{
+  border-color:color-mix(in oklab, var(--brand-400), white 60%)!important
+}
 .table-cart thead th:first-child,.table-cart tbody td:first-child{width:58%}
-.note-list{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
-.note-pill{display:inline-flex;align-items:center;background:#eef6ff;border:1px solid #cfe2ff;border-radius:999px;padding:4px 10px;font-size:.82rem;font-weight:800}
-.note-pill .k{color:#194bd6;margin-right:6px}.note-pill .v{color:#0D4071}
-.table-cart tbody tr:not(:last-child) td{border-bottom:2px dashed #0066ff!important}
-.cart-footer{background:linear-gradient(180deg,var(--psu-ocean-blue),var(--psu-deep-blue));color:#fff;border-top:1px solid #0D4071;padding:12px 14px;border-radius:0 0 14px 14px}
-.total-tag{font-size:1.35rem;font-weight:900;color:#4EC5E0}
+.table-cart tbody tr:hover td{ background:color-mix(in oklab, var(--surface-3), white 8%); }
+.table-cart tbody tr:not(:last-child) td{border-bottom:2px dashed color-mix(in oklab, var(--brand-500), white 55%)!important}
 
-.alert-ok{background:#2e7d32;color:#fff;border:none}
-.badge-user{background:var(--psu-ocean-blue);color:#fff;font-weight:800;border-radius:999px}
+.note-list{display:flex; flex-wrap:wrap; gap:6px; margin-top:6px}
+.note-pill{
+  display:inline-flex; align-items:center; background:var(--surface-2);
+  border:1px solid color-mix(in oklab, var(--brand-300), white 40%);
+  border-radius:999px; padding:4px 10px; font-size:.82rem; font-weight:800
+}
+.note-pill .k{color:var(--brand-400); margin-right:6px}
+.note-pill .v{color:var(--text-strong)}
 
-:focus-visible{outline:3px solid var(--ring);outline-offset:2px;border-radius:10px}
+.cart-footer{
+  background:linear-gradient(180deg,var(--brand-500),var(--brand-900));
+  color:#fff; border-top:1px solid var(--brand-900);
+  padding:12px 14px; border-radius:0 0 14px 14px
+}
+
+.summary-row{ display:flex; justify-content:space-between; align-items:center; gap:10px }
+.summary-row .tag{ display:inline-flex; align-items:center; gap:8px; font-weight:800 }
+.summary-row .tag i{ opacity:.9 }
+
+/* ===== Payment method pills: clearer selected state ===== */
+.psu-radio{
+  display:inline-flex; align-items:center; border-radius:999px;
+  background: var(--surface-2);
+  border:1.5px solid color-mix(in oklab, var(--brand-700), black 10%);
+  padding:6px 10px; color:var(--text-strong); font-weight:800; cursor:pointer;
+  transition:filter .15s, border-color .15s, transform .05s;
+}
+.psu-radio:hover{ filter:brightness(1.04); }
+.psu-radio:active{ transform:scale(.99); }
+
+.psu-radio input{ display:none; }
+
+/* ตัวแคปซูลข้อความด้านใน */
+.psu-radio span{
+  display:inline-flex; align-items:center; gap:8px;
+  padding:8px 14px; border-radius:999px;
+  color:var(--ink); line-height:1;
+  border:1px solid transparent;
+}
+
+/* ========== SELECTED ========== */
+/* โทนแบน/ชัดเจน: พื้นเทียล, ตัวอักษรขาว, เส้นขอบสว่าง */
+.psu-radio input:checked + span{
+  background: var(--aqua-500);           /* #00ADB5 */
+  color:#fff;
+  border-color: color-mix(in oklab, var(--aqua-400), white 15%);
+  box-shadow:
+    0 0 0 2px color-mix(in oklab, var(--aqua-500), black 25%) inset,
+    0 0 0 3px color-mix(in oklab, var(--aqua-500), white 65%); /* วงแหวนอ่อนรอบๆ ให้เด่นขึ้น */
+}
+
+/* คีย์บอร์ดโฟกัสให้เห็นชัด */
+.psu-radio:has(input:focus-visible){
+  outline:3px solid color-mix(in oklab, var(--aqua-500), white 35%);
+  outline-offset:3px; border-radius:14px;
+}
+
+/* ---------- Payment / Dropzone ---------- */
+#uploadZone,#cashZone{ color:var(--text-strong) }
+#uploadZone label,#cashZone label{ font-weight:800; color:var(--brand-700) }
+#dropzone{
+  border:2px dashed var(--brand-400);
+  background:var(--surface-2);
+  color:var(--text-normal);
+  transition:all .2s; border-radius:12px; padding:16px; text-align:center; cursor:pointer
+}
+#dropzone:hover{ filter:brightness(1.02) }
+#dropzone .lead{color:var(--text-strong); font-weight:900}
+#dropzone .small{color:var(--text-muted)}
+#btnUpload,#btnCashConfirm{
+  background:linear-gradient(180deg,var(--brand-500),var(--brand-900));
+  border:none; font-weight:900; letter-spacing:.5px
+}
+#btnUpload:hover,#btnCashConfirm:hover{ filter:brightness(1.05) }
+#btnSlipCancel,#btnSlipCancel2{
+  border:1px solid var(--violet-200); color:var(--text-strong); font-weight:800; background:var(--surface)
+}
+#btnSlipCancel:hover,#btnSlipCancel2:hover{ filter:brightness(1.03) }
+#cashZone .alert-info{
+  background:var(--surface-2); border:1px solid var(--brand-400);
+  color:var(--text-strong); font-weight:800; border-radius:12px
+}
+
+/* ---------- Modal ---------- */
+.psu-modal{position:fixed; inset:0; display:none; z-index:1050}
+.psu-modal.is-open{display:block}
+.psu-modal__backdrop{position:absolute; inset:0; background:rgba(3,12,24,.55); backdrop-filter:blur(2px)}
+.psu-modal__dialog{
+  position:absolute; left:50%; top:50%; transform:translate(-50%,-50%);
+  width:min(1020px,96vw); max-height:92vh; overflow:auto; background:var(--surface);
+  border-radius:20px; box-shadow:var(--shadow-lg);
+  border:1px solid color-mix(in oklab, var(--violet-200), black 12%)
+}
+.psu-modal__body{padding:0}
+.psu-modal__close{
+  position:absolute; right:12px; top:8px; border:0; background:transparent;
+  font-size:32px; font-weight:900; line-height:1; cursor:pointer; color:var(--text-strong)
+}
+
+/* ---------- Misc / A11y ---------- */
+.alert-ok{background:#2e7d32; color:#fff; border:none}
+.badge-user{
+  background:linear-gradient(180deg,var(--brand-400),var(--brand-700));
+  color:#fff; font-weight:800; border-radius:999px
+}
+.voice-toggle{
+  display:inline-flex; align-items:center; gap:6px; padding:4px 10px; border-radius:999px;
+  background:color-mix(in oklab, var(--surface), white 5%);
+  border:1px solid color-mix(in oklab, var(--violet-200), black 18%); font-weight:800
+}
+
+:focus-visible{outline:3px solid var(--ring); outline-offset:2px; border-radius:10px}
 *::-webkit-scrollbar{width:10px;height:10px}
-*::-webkit-scrollbar-thumb{background:#2b568a;border-radius:10px}
-*::-webkit-scrollbar-thumb:hover{background:#2f6db5}
-*::-webkit-scrollbar-track{background:rgba(255,255,255,.08)}
+*::-webkit-scrollbar-thumb{background:color-mix(in oklab, var(--brand-700), black 8%); border-radius:10px}
+*::-webkit-scrollbar-thumb:hover{background:color-mix(in oklab, var(--brand-500), black 10%)}
+*::-webkit-scrollbar-track{background:color-mix(in oklab, var(--surface-2), white 4%)}
 
-.voice-toggle{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;background:rgba(255,255,255,.10);border:1px solid rgba(255,255,255,.25);font-weight:800}
+/* Toast */
+#toast-zone > div{ border:1px solid color-mix(in oklab, var(--violet-200), black 20%) }
+.summary-card{
+  background: var(--surface-2);
+  border-top:1px solid color-mix(in oklab, var(--brand-400), white 35%);
+  border-bottom-left-radius:14px;
+  border-bottom-right-radius:14px;
+}
+.summary-card .amount{ font-weight:800; color:var(--text-strong) }
+.summary-card .net{ font-weight:900; color:var(--brand-500) }
+/* Summary block: dark bg + white text */
+.summary-card{
+  background: var(--surface-2);
+  border-top:1px solid color-mix(in oklab, var(--brand-400), white 35%);
+  border-bottom-left-radius:14px;
+  border-bottom-right-radius:14px;
+}
+
+/* ทำให้ตัวอักษรในบล็อคนี้ “ขาว” ทั้งหมด */
+.summary-card,
+.summary-card *{
+  color:#fff !important;
+}
+
+/* เส้นคั่นให้กลืนกับพื้นหลังเข้ม */
+.summary-card hr{
+  border-color: rgba(255,255,255,.25);
+}
+/* ชื่อเมนูในตะกร้าให้ออกขาว */
+.table-cart .item-title{
+  color:#fff !important;             /* หรือใช้ var(--text-strong) ก็ได้ */
+  /* color:var(--text-strong) !important; */
+}
+/* === Reduce corner radius for cards/components === */
+:root{
+  --radius: 8px;              /* ใช้กับ .pos-card (เผื่อมีการอ้างถึงตัวแปร) */
+}
+
+/* กล่องการ์ดหลัก, การ์ดสินค้า, ตารางตะกร้า, ท็อปบาร์, โมดัล */
+.pos-card,
+.product-mini,
+.table-cart,
+.topbar,
+.psu-modal__dialog{
+  border-radius: 8px !important;
+}
+
+/* ส่วนหัว/ภาพในการ์ดสินค้า (เผื่ออยากให้รับกับมุมการ์ดใหม่) */
+.product-mini .thumb{
+  border-top-left-radius: 8px;
+  border-top-right-radius: 8px;
+}
+
+/* ปุ่ม/ชิป/พิลล์ถ้าต้องการลดความโค้งลงด้วย (เลือกใช้ได้) */
+.note-pill{
+  border-radius: 8px !important;
+}
+.chips a{
+  border-radius: 12px !important; /* จาก 999px ลดลงหน่อย แต่ยังดูเป็นชิป */
+}
+/* Fix: header ของตารางตะกร้าเป็นเส้นเดียว ไม่ซ้อน */
+.table-cart{
+  border-collapse: separate;     /* ปลอดภัยกับเงา/มุมโค้ง */
+  border: 0;                     /* ไม่ให้กรอบตารางหลักโผล่ */
+}
+.table-cart thead th{
+  border-top: 0 !important;      /* ปิดเส้นบนที่ Bootstrap ใส่ให้ */
+  border-bottom: 0 !important;   /* ไม่ใช้เส้นที่ระดับเซลล์ */
+}
+.table-cart thead tr{
+  background: var(--surface-2);  /* พื้นหัวตารางเหมือนเดิม */
+  border-bottom: 2px solid color-mix(in oklab, var(--brand-400), white 40%);
+}
+
+/* กันเส้นซ้อนในบอดี้ขึ้นมาชนหัวตาราง */
+.table-cart tbody td{
+  border-top: 0 !important;
+}
+
+/* (ถ้าอยากให้แถวคั่นเป็นเส้นประต่อไป ก็เก็บอันนี้ไว้ได้) */
+.table-cart tbody tr:not(:last-child) td{
+  border-bottom: 2px dashed color-mix(in oklab, var(--brand-500), white 55%) !important;
+}
+.table-cart tbody tr{
+  position:relative;
+}
+.table-cart tbody tr:not(:last-child)::after{
+  content:"";
+  position:absolute; left:50%; transform:translateX(-50%);
+  bottom:-7px; width:60%; height:6px; border-radius:999px;
+  background: color-mix(in oklab, var(--brand-500), white 80%);
+  box-shadow: 0 1px 0 color-mix(in oklab, var(--brand-500), black 40%) inset;
+  opacity:.45;
+}
+.table-cart tbody td{ border-bottom:0 !important; }
+/* ซีบร้าลายแถว */
+.table-cart tbody tr:nth-child(odd) td{
+  background: color-mix(in oklab, var(--surface-3), white 6%);
+}
+.table-cart tbody tr:nth-child(even) td{
+  background: color-mix(in oklab, var(--surface-2), white 6%);
+}
+/* เส้นคั่นบางสีเทียลอ่อน */
+.table-cart tbody tr:not(:last-child) td{
+  border-bottom: 1.5px solid color-mix(in oklab, var(--brand-500), white 60%) !important;
+}
+/* ===== Upload button — Emerald high contrast ===== */
+#btnUpload{
+  background: linear-gradient(180deg, #22C55E, #16A34A); /* emerald -> darker emerald */
+  color:#fff;
+  border:1.5px solid #15803D;
+  box-shadow:
+    0 1px 0 rgba(0,0,0,.25) inset,
+    0 8px 18px rgba(0,0,0,.22);
+  font-weight:900; letter-spacing:.3px;
+  border-radius:12px;
+  transition: filter .15s, transform .05s, box-shadow .15s;
+}
+#btnUpload:hover{
+  filter:brightness(1.06);
+  box-shadow:
+    0 1px 0 rgba(0,0,0,.25) inset,
+    0 10px 22px rgba(0,0,0,.26);
+}
+#btnUpload:active{ transform: translateY(1px); }
+#btnUpload:focus-visible{
+  outline:3px solid rgba(34,197,94,.55); /* emerald focus ring */
+  outline-offset:2px;
+}
+#btnUpload:disabled{
+  opacity:.65; cursor:not-allowed; filter:none;
+  box-shadow:0 1px 0 rgba(0,0,0,.25) inset;
+}
+/* ==== Strong Accent Buttons (Upload/Cash) ==== */
+#btnUpload,
+#btnCashConfirm{
+  /* โทนฟ้าเด่น ตัดกับพื้นเข้ม */
+  background: linear-gradient(180deg, #2ea7ff 0%, #1f7ee8 100%);
+  border: 1px solid #1669c9;
+  color: #fff !important;
+  font-weight: 900;
+  letter-spacing: .2px;
+  box-shadow: 0 8px 20px rgba(31,126,232,.35), inset 0 -2px 0 rgba(0,0,0,.15);
+  text-shadow: 0 1px 0 rgba(0,0,0,.25);
+}
+
+#btnUpload:hover,
+#btnCashConfirm:hover{
+  filter: brightness(1.05);
+  box-shadow: 0 10px 24px rgba(31,126,232,.45), inset 0 -2px 0 rgba(0,0,0,.18);
+}
+
+#btnUpload:active,
+#btnCashConfirm:active{
+  transform: translateY(1px);
+  box-shadow: 0 6px 14px rgba(31,126,232,.35) inset;
+}
+
+#btnUpload:focus-visible,
+#btnCashConfirm:focus-visible{
+  outline: 3px solid rgba(46,167,255,.55);
+  outline-offset: 2px;
+  border-radius: 10px;
+}
+
+/* Disabled */
+#btnUpload:disabled,
+#btnCashConfirm:disabled{
+  opacity: .65;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+/* ปุ่ม “ยกเลิก” ให้คงคอนทราสต์ชัดในดาร์ค */
+#btnSlipCancel,
+#btnSlipCancel2{
+  border: 1px solid #8fb9ff;
+  color: #eaf3ff;
+  background: #203145;
+}
+#btnSlipCancel:hover,
+#btnSlipCancel2:hover{
+  filter: brightness(1.05);
+}
+/* ==== Category chip – ACTIVE (ตามภาพ) ==== */
+.chips a{
+  display:inline-flex; align-items:center; gap:8px;
+  padding:7px 14px; margin:0 8px 10px 0; border-radius:999px;
+  background:color-mix(in oklab, var(--surface), white 8%);
+  color:var(--text-strong); text-decoration:none; font-weight:800;
+  border:1px solid color-mix(in oklab, var(--brand-700), black 18%);
+  transition:filter .12s, transform .08s;
+}
+.chips a:hover{ transform:translateY(-1px); }
+
+.chips a.active{
+  background: linear-gradient(180deg, #1fd1d6, #0aa9ae);   /* เทียลสว่าง -> เข้ม */
+  color: #062b33;                                          /* ตัวอักษรเข้มอ่านง่าย */
+  border: 1.5px solid #0d8f94;                             /* ขอบเทียลเข้ม */
+  box-shadow:
+    inset 0 -2px 0 rgba(0,0,0,.15),                        /* เงาด้านล่างด้านใน */
+    0 6px 14px rgba(0,173,181,.30);                        /* เงาด้านนอกนุ่มๆ */
+}
+.chips a.active .bi{ filter: drop-shadow(0 0 0 rgba(0,0,0,0)); opacity:.95; }
+
+.chips a:focus-visible{
+  outline: 3px solid rgba(31,209,214,.45);                 /* วงแหวนโฟกัส */
+  outline-offset: 2px;
+  border-radius: 999px;
+}
+/* === Compact size for CTA 'เลือก' === */
+.product-mini .row2 .quick{
+  min-width: 84px;          /* เดิม ~92px */
+  padding: 6px 12px;        /* เดิม 8px 14px */
+  font-size: .86rem;        /* เดิม .92rem */
+  border-radius: 999px;     /* รักษาทรงแคปซูล */
+}
+
+/* เล็กลงอีกนิดเฉพาะจอเล็ก */
+@media (max-width: 575.98px){
+  .product-mini .row2 .quick{
+    min-width: 78px;
+    padding: 5px 10px;
+    font-size: .84rem;
+  }
+}
+/* === Compact size for CTA 'เลือก' === */
+.product-mini .row2 .quick{
+  min-width: 84px;          /* เดิม ~92px */
+  padding: 6px 12px;        /* เดิม 8px 14px */
+  font-size: .86rem;        /* เดิม .92rem */
+  border-radius: 999px;     /* รักษาทรงแคปซูล */
+}
+
+/* เล็กลงอีกนิดเฉพาะจอเล็ก */
+@media (max-width: 575.98px){
+  .product-mini .row2 .quick{
+    min-width: 78px;
+    padding: 5px 10px;
+    font-size: .84rem;
+  }
+}
+/* === CTA 'เลือก' : Blue on Dark, White text === */
+:root{
+  --cta-blue-500:#2ea7ff;   /* ฟ้าน้ำเงินสด */
+  --cta-blue-600:#1f7ee8;   /* ฟ้าเข้มลงสำหรับไล่เฉด */
+}
+
+.product-mini .row2 .quick{
+  /* ขนาดกะทัดรัด */
+  min-width: 84px;
+  padding: 6px 12px;
+  font-size: .86rem;
+  border-radius: 999px;
+
+  /* โทนสี */
+  background: linear-gradient(180deg, var(--cta-blue-500), var(--cta-blue-600));
+  color:#fff;                              /* ตัวอักษรสีขาว */
+  border: 2px solid #1669c9;               /* เส้นขอบน้ำเงินเข้ม */
+  text-shadow: 0 1px 0 rgba(0,0,0,.25);    /* ช่วยให้อ่านชัดขึ้นบนพื้นฟ้า */
+  box-shadow: 0 10px 22px rgba(0,0,0,.25), inset 0 -2px 0 rgba(0,0,0,.12);
+  transform: translateY(0);
+  transition: transform .08s, filter .12s, box-shadow .12s;
+}
+
+.product-mini:hover .row2 .quick{
+  transform: translateY(-2px);
+  filter: brightness(1.05);
+  box-shadow: 0 12px 26px rgba(0,0,0,.30), inset 0 -2px 0 rgba(0,0,0,.16);
+}
+
+/* โฟกัสจากคีย์บอร์ดให้เห็นชัด */
+.product-mini .row2 .quick:focus-visible{
+  outline: 3px solid rgba(46,167,255,.55);
+  outline-offset: 2px;
+  border-radius: 10px;
+}
+
+/* Disabled */
+.product-mini .row2 .quick[disabled]{
+  opacity:.6; cursor:not-allowed; filter:none; transform:none; box-shadow:none;
+}
+
+/* จอเล็ก: ย่ออีกนิด */
+@media (max-width: 575.98px){
+  .product-mini .row2 .quick{
+    min-width: 78px;
+    padding: 5px 10px;
+    font-size: .84rem;
+  }
+}
+:root{ --pay-blue:#1f7ee8; } /* ปรับเฉดน้ำเงินได้ */
+
+#slipModal .psu-radio:has(input:checked){
+  background: transparent !important;   /* ซ่อนกรอบนอก */
+  border-color: transparent !important;
+  box-shadow: none !important;
+  outline: none !important;
+}
+
+/* เลือกแล้ว = น้ำเงินล้วน + ขอบขาวชัด */
+#slipModal .psu-radio input:checked + span{
+  background: var(--pay-blue) !important;
+  color: #fff !important;
+  border: 2px solid #fff !important;    /* <<< ขอบเส้นสีขาว */
+  box-shadow: none !important;
+  text-shadow: none !important;
+}
+
+/* (ไม่บังคับ) ถ้าอยากให้ปุ่มที่ยังไม่ถูกเลือกมีเส้นขาวจาง ๆ ด้วย */
+#slipModal .psu-radio input:not(:checked) + span{
+  border: 1.5px solid rgba(255,255,255,.28);
+}
+
 </style>
 </head>
 <body>
@@ -876,34 +1450,44 @@ body{background:linear-gradient(135deg,var(--bg-grad1),var(--bg-grad2));color:#f
   <!-- Top bar -->
   <div class="topbar d-flex align-items-center justify-content-between mb-3">
     <div class="d-flex align-items-center">
-      <h4 class="brand mb-0 mr-3">PSU Blue Cafe • Menu</h4>
+      <h4 class="brand mb-0 mr-3"><i class="bi bi-cup-hot"></i> PSU Blue Cafe • Menu</h4>
 
       <form class="form-inline" method="get" action="front_store.php">
-        <input name="q" value="<?= htmlspecialchars($keyword,ENT_QUOTES,'UTF-8') ?>" class="form-control form-control-sm searchbox mr-2" type="search" placeholder="ค้นหารายการ (กด / เพื่อค้นหา)">
+        <div class="search-wrap mr-2">
+          <i class="bi bi-search"></i>
+          <input name="q" value="<?= htmlspecialchars($keyword,ENT_QUOTES,'UTF-8') ?>" class="form-control form-control-sm searchbox" type="search" placeholder="ค้นหารายการ (กด / เพื่อค้นหา)">
+        </div>
         <?php if($category_id>0){ ?><input type="hidden" name="category_id" value="<?= (int)$category_id ?>"><?php } ?>
         <?php if($isTop){ ?><input type="hidden" name="category_id" value="top"><?php } ?>
-        <button class="btn btn-sm btn-ghost">ค้นหา</button>
+        <button class="btn btn-sm btn-ghost"><i class="bi bi-arrow-right-circle"></i> ค้นหา</button>
       </form>
     </div>
 
     <div class="d-flex align-items-center topbar-actions">
       <label class="voice-toggle mr-2 mb-0">
         <input type="checkbox" id="voiceSwitch" class="mr-1">
-        เสียงแจ้งเตือน
+        <i class="bi bi-bell"></i> เสียงแจ้งเตือน
       </label>
 
-      <a href="checkout.php" class="btn btn-primary btn-sm mr-2" style="font-weight:800">Order</a>
-      <a href="../SelectRole/role.php" class="btn btn-primary btn-sm mr-2" style="font-weight:800">ตําเเหน่ง</a>
-       <a href="user_profile.php" class="btn btn-primary btn-sm mr-2" style="font-weight:800">ข้อมูลส่วนตัว</a>
-      <span class="badge badge-user px-3 py-2 mr-2">ผู้ใช้: <?= htmlspecialchars($_SESSION['username'] ?? '', ENT_QUOTES,'UTF-8') ?></span>
-      <a class="btn btn-sm btn-outline-light" href="../logout.php">ออกจากระบบ</a>
+      <a href="checkout.php" class="btn btn-primary btn-sm mr-2" style="font-weight:800"><i class="bi bi-receipt"></i> Order</a>
+      <a href="../SelectRole/role.php" class="btn btn-primary btn-sm mr-2" style="font-weight:800"><i class="bi bi-person-badge"></i> บทบาท</a>
+      <a href="user_profile.php" class="btn btn-primary btn-sm mr-2" style="font-weight:800"><i class="bi bi-person-circle"></i> ข้อมูลส่วนตัว</a>
+      <span class="badge badge-user px-3 py-2 mr-2"><i class="bi bi-person"></i> ผู้ใช้: <?= htmlspecialchars($_SESSION['username'] ?? '', ENT_QUOTES,'UTF-8') ?></span>
+
+      <!-- NEW: Theme toggle -->
+      <button id="themeToggle" class="btn btn-sm btn-ghost mr-2" type="button" title="สลับธีม (Light/Dark)">
+        <i class="bi bi-moon-stars"></i>
+      </button>
+
+      <a class="btn btn-sm btn-outline-light" href="../logout.php"><i class="bi bi-box-arrow-right"></i> ออกจากระบบ</a>
     </div>
   </div>
 
   <?php if ($success_msg): ?>
     <div class="alert alert-ok pos-card p-3 mb-3">
+      <i class="bi bi-check2-circle"></i>
       <?= htmlspecialchars($success_msg, ENT_QUOTES, 'UTF-8') ?>
-      &nbsp;&nbsp;<a class="btn btn-light btn-sm" href="checkout.php">ไปหน้า Order</a>
+      &nbsp;&nbsp;<a class="btn btn-light btn-sm" href="checkout.php"><i class="bi bi-arrow-up-right-square"></i> ไปหน้า Order</a>
     </div>
   <?php endif; ?>
 
@@ -921,17 +1505,17 @@ body{background:linear-gradient(135deg,var(--bg-grad1),var(--bg-grad2));color:#f
   <!-- CHIPS -->
   <div class="pos-card p-3 mb-3">
     <div class="d-flex align-items-center flex-wrap chips">
-      <div class="mr-2 text-white-50 font-weight-bold">หมวดหมู่:</div>
+      <div class="mr-2 text-white-50 font-weight-bold"><i class="bi bi-columns-gap"></i> หมวดหมู่:</div>
 
       <?php $topLink = 'front_store.php?category_id=top' . ($keyword!==''?('&q='.urlencode($keyword)):''); ?>
-      <a href="<?= htmlspecialchars($topLink,ENT_QUOTES,'UTF-8') ?>" class="<?= $isTop ? 'active' : '' ?>">ยอดนิยม</a>
+      <a href="<?= htmlspecialchars($topLink,ENT_QUOTES,'UTF-8') ?>" class="<?= $isTop ? 'active' : '' ?>"><i class="bi bi-bar-chart-fill"></i> ยอดนิยม</a>
 
-      <a href="front_store.php<?= $keyword!==''?('?q='.urlencode($keyword)) : '' ?>" class="<?= (!$isTop && $category_id===0)?'active':'' ?>">ทั้งหมด</a>
+      <a href="front_store.php<?= $keyword!==''?('?q='.urlencode($keyword)) : '' ?>" class="<?= (!$isTop && $category_id===0)?'active':'' ?>"><i class="bi bi-grid-3x3-gap"></i> ทั้งหมด</a>
 
       <?php while($c=$cats->fetch_assoc()):
         $link = "front_store.php?category_id=".(int)$c['category_id'].($keyword!==''?('&q='.urlencode($keyword)):''); ?>
         <a href="<?= htmlspecialchars($link,ENT_QUOTES,'UTF-8') ?>" class="<?= (!$isTop && $category_id===(int)$c['category_id'])?'active':'' ?>">
-          <?= htmlspecialchars($c['category_name'],ENT_QUOTES,'UTF-8') ?>
+          <i class="bi bi-tag"></i> <?= htmlspecialchars($c['category_name'],ENT_QUOTES,'UTF-8') ?>
         </a>
       <?php endwhile; ?>
     </div>
@@ -963,6 +1547,9 @@ body{background:linear-gradient(135deg,var(--bg-grad1),var(--bg-grad2));color:#f
               }
             ?>
               <a class="product-mini" href="menu_detail.php?id=<?= (int)$m['menu_id'] ?>" data-id="<?= (int)$m['menu_id'] ?>" tabindex="0">
+                <?php if ($hasPromo): ?>
+                  <div class="ribbon"><i class="bi bi-tags"></i> โปร</div>
+                <?php endif; ?>
                 <img class="thumb" src="<?= htmlspecialchars($imgSrc,ENT_QUOTES,'UTF-8') ?>" alt="">
                 <div class="meta">
                   <div class="pname"><?= htmlspecialchars($m['name'],ENT_QUOTES,'UTF-8') ?></div>
@@ -970,6 +1557,7 @@ body{background:linear-gradient(135deg,var(--bg-grad1),var(--bg-grad2));color:#f
                   <?php if ($hasPromo): ?>
                     <div class="mt-1">
                       <span class="badge badge-success" style="font-weight:800">
+                        <i class="bi bi-stars"></i>
                         โปร: <?= htmlspecialchars($promoTag, ENT_QUOTES, 'UTF-8') ?>
                       </span>
                     </div>
@@ -982,23 +1570,11 @@ $promoValue   = isset($m['discount_value']) ? (float)$m['discount_value'] : 0.0;
 $promoStart   = $m['promo_start_at'] ?? '';
 $promoEnd     = $m['promo_end_at'] ?? '';
 $promoActive  = isset($m['promo_is_active']) ? ((int)$m['promo_is_active'] === 1) : false;
-
-// รูปแบบตัวเลข/ข้อความ
 $valText = ($promoType === 'PERCENT')
   ? rtrim(rtrim(number_format($promoValue, 2, '.', ''), '0'), '.') . '%'
   : number_format($promoValue, 2) . ' ฿';
-
-$saveText = number_format((float)$m['discount_amount'], 2); // เงินที่ลดได้
+$saveText = number_format((float)$m['discount_amount'], 2);
 ?>
-<?php if ($hasPromo): ?>
-  <div class="mt-2" style="font-size:.86rem; background:#f6fbff; border:1px solid #d6e9ff; border-radius:10px; padding:8px 10px;">
-    
-    
-  </div>
-<?php endif; ?>
-
-
-
                   <div class="row2">
                     <div class="pprice">
                       <?php if ($hasPromo): ?>
@@ -1014,14 +1590,14 @@ $saveText = number_format((float)$m['discount_amount'], 2); // เงินท�
                         <?= money_fmt($final) ?> ฿
                       <?php endif; ?>
                     </div>
-                    <span class="quick">เลือก</span>
+                    <span class="quick"><i class="bi bi-plus-circle"></i> เลือก</span>
                   </div>
                 </div>
               </a>
             <?php endwhile; ?>
           </div>
         <?php else: ?>
-          <div class="p-3"><div class="alert alert-warning m-0">ไม่พบสินค้า</div></div>
+          <div class="p-3"><div class="alert alert-warning m-0"><i class="bi bi-exclamation-triangle"></i> ไม่พบสินค้า</div></div>
         <?php endif; ?>
       </div>
     </div>
@@ -1054,7 +1630,7 @@ $saveText = number_format((float)$m['discount_amount'], 2); // เงินท�
     <div class="psu-modal__body" id="slipBody">
       <div class="p-3 p-md-4">
         <div class="d-flex justify-content-between align-items-center mb-2">
-          <div class="h5 mb-0">ยืนยันการชำระเงิน</div>
+          <div class="h5 mb-0"><i class="bi bi-cash-stack"></i> ยืนยันการชำระเงิน</div>
           <span class="badge badge-primary" id="slipBadge" style="font-size:.95rem"></span>
         </div>
         <div class="text-muted mb-3">ยอดที่ต้องชำระ: <strong id="slipAmount">0.00</strong> ฿</div>
@@ -1073,37 +1649,44 @@ $saveText = number_format((float)$m['discount_amount'], 2); // เงินท�
           </div>
         </div>
 
+        <!-- UPLOAD ZONE -->
         <div id="uploadZone">
           <form id="frmSlip" enctype="multipart/form-data">
             <input type="hidden" name="action" value="upload_slip">
             <input type="hidden" name="order_id" id="slipOrderId" value="">
             <div class="mb-2" id="dropzone" style="border:2px dashed #8bb6ff; border-radius:12px; padding:16px; background:#f6faff; text-align:center; cursor:pointer">
-              <div class="lead mb-1">ลากไฟล์มาวางที่นี่ หรือกดเลือกไฟล์</div>
+              <div class="lead mb-1"><i class="bi bi-cloud-arrow-up"></i> ลากไฟล์มาวางที่นี่ หรือใช้ปุ่มด้านล่าง</div>
               <div class="small text-muted">รองรับ JPG, PNG, WebP, HEIC ขนาดไม่เกิน 5MB</div>
-              <input type="file" name="slip" id="slipFile" accept="image/*" capture="environment" class="d-none">
-              <button type="button" class="btn btn-info mt-2" id="btnChoose">เลือกไฟล์ / ถ่ายภาพ</button>
+
+              <input type="file" name="slip" id="slipFile" accept="image/*" class="d-none">
+
+              <div class="mt-2 d-flex justify-content-center" style="gap:10px; flex-wrap:wrap">
+                <button type="button" class="btn btn-outline-primary" id="btnChooseFile"><i class="bi bi-file-earmark-image"></i> เลือกไฟล์</button>
+                <button type="button" class="btn btn-info" id="btnTakePhoto"><i class="bi bi-camera"></i> ถ่ายภาพ</button>
+              </div>
             </div>
 
             <div class="form-group">
-              <label>หมายเหตุ (ถ้ามี)</label>
+              <label><i class="bi bi-pencil-square"></i> หมายเหตุ (ถ้ามี)</label>
               <input type="text" name="note" class="form-control" placeholder="เช่น โอนจากธนาคาร... เวลา ...">
             </div>
 
             <div id="slipPreview" style="display:flex; gap:10px; flex-wrap:wrap; margin:10px 0"></div>
 
             <div class="d-flex">
-              <button class="btn btn-success mr-2" type="submit" id="btnUpload">อัปโหลดสลิป</button>
-              <button class="btn btn-outline-secondary" type="button" id="btnSlipCancel">ยกเลิก</button>
+              <button class="btn btn-success mr-2" type="submit" id="btnUpload"><i class="bi bi-upload"></i> อัปโหลดสลิป</button>
+              <button class="btn btn-outline-secondary" type="button" id="btnSlipCancel"><i class="bi bi-x-circle"></i> ยกเลิก</button>
             </div>
             <div id="slipMsg" class="mt-3"></div>
           </form>
         </div>
 
+        <!-- CASH ZONE -->
         <div id="cashZone" style="display:none">
-          <div class="alert alert-info">รับชำระเป็น <strong>เงินสด</strong> – ไม่ต้องแนบสลิป</div>
+          <div class="alert alert-info"><i class="bi bi-info-circle"></i> รับชำระเป็น <strong>เงินสด</strong> – ไม่ต้องแนบสลิป</div>
           <div class="d-flex">
-            <button class="btn btn-success mr-2" id="btnCashConfirm" type="button">ยืนยันรับเงินสด</button>
-            <button class="btn btn-outline-secondary" type="button" id="btnSlipCancel2">ยกเลิก</button>
+            <button class="btn btn-success mr-2" id="btnCashConfirm" type="button"><i class="bi bi-cash"></i> ยืนยันรับเงินสด</button>
+            <button class="btn btn-outline-secondary" type="button" id="btnSlipCancel2"><i class="bi bi-x-circle"></i> ยกเลิก</button>
           </div>
           <div id="cashMsg" class="mt-3"></div>
         </div>
@@ -1134,7 +1717,36 @@ document.addEventListener('keydown', function(e){
 </audio>
 
 <script>
-// ==== Voice helper ====
+/* ===== Theme Toggle (จำค่าไว้ใน localStorage) ===== */
+(function(){
+  const KEY='psu.theme.pref';
+  const root=document.documentElement;
+  const current = localStorage.getItem(KEY);
+  if (current) {
+    root.setAttribute('data-theme', current);
+  } else {
+    const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+    root.setAttribute('data-theme', prefersDark ? 'dark' : 'light');
+  }
+  const btn=document.getElementById('themeToggle');
+  if(btn){
+    const syncIcon = ()=>{
+      const now = root.getAttribute('data-theme');
+      btn.innerHTML = now==='dark' ? '<i class="bi bi-brightness-high"></i>' : '<i class="bi bi-moon-stars"></i>';
+    };
+    syncIcon();
+    btn.addEventListener('click', ()=>{
+      const now = root.getAttribute('data-theme')==='dark' ? 'light' : 'dark';
+      root.setAttribute('data-theme', now);
+      localStorage.setItem(KEY, now);
+      syncIcon();
+    });
+  }
+})();
+</script>
+
+<script>
+/* ===== Voice helper ===== */
 const voiceSwitch = document.getElementById('voiceSwitch');
 const VOICE_FLAG_KEY = 'psu.voice.enabled';
 try{ voiceSwitch.checked = localStorage.getItem(VOICE_FLAG_KEY) === '1'; }catch(_){}
@@ -1161,7 +1773,7 @@ function speakOnceWarmup(){
 </script>
 
 <script>
-// ==== Poll order status + Voice on READY ====
+/* ===== Poll order status + Voice on READY ===== */
 let lastSince = ''; let knownStatus = {};
 function showToast(text, style='info'){
   const id = 't' + Date.now();
@@ -1202,7 +1814,7 @@ window.addEventListener('load', () => {
 </script>
 
 <script>
-// ===== Modal logic (เพิ่ม/แก้ไขผ่านโมดัลเมนู) =====
+/* ===== Modal logic (เพิ่ม/แก้ไขผ่านโมดัลเมนู) ===== */
 const modal = document.getElementById('menuModal');
 const modalBody = document.getElementById('menuModalBody');
 const closeBtn = document.getElementById('menuModalClose');
@@ -1313,10 +1925,12 @@ const slipFile    = document.getElementById('slipFile');
 const slipPrev    = document.getElementById('slipPreview');
 const slipMsg     = document.getElementById('slipMsg');
 const dropzone    = document.getElementById('dropzone');
-const btnChoose   = document.getElementById('btnChoose');
 const btnUpload   = document.getElementById('btnUpload');
 const btnSlipCancel = document.getElementById('btnSlipCancel');
 const frmSlip     = document.getElementById('frmSlip');
+
+const btnChooseFile = document.getElementById('btnChooseFile');
+const btnTakePhoto  = document.getElementById('btnTakePhoto');
 
 const btnSlipCancel2 = document.getElementById('btnSlipCancel2');
 const cashZone   = document.getElementById('cashZone');
@@ -1325,11 +1939,12 @@ const btnCashConfirm = document.getElementById('btnCashConfirm');
 const cashMsg    = document.getElementById('cashMsg');
 
 function openSlipModal(orderId, amountText){
+  if (!slipOrderId) return;
   slipOrderId.value = String(orderId);
   slipAmount.textContent = amountText;
   slipBadge.textContent  = '#' + orderId;
   slipPrev.innerHTML = '';
-  slipFile.value = '';
+  if (slipFile) slipFile.value = '';
   slipMsg.innerHTML = '';
 
   const pmTransfer = document.querySelector('input[name="pmethod"][value="transfer"]');
@@ -1350,23 +1965,21 @@ document.addEventListener('keydown', e=>{ if(e.key==='Escape') closeSlipModal();
 
 btnSlipCancel.addEventListener('click', closeSlipModal);
 btnSlipCancel2?.addEventListener('click', closeSlipModal);
-btnChoose.addEventListener('click', () => slipFile.click());
-dropzone.addEventListener('click', () => slipFile.click());
 
-document.addEventListener('change', (e)=>{
-  if (e.target && e.target.name === 'pmethod') {
-    const v = e.target.value;
-    if (uploadZone) uploadZone.style.display = (v === 'transfer') ? '' : 'none';
-    if (cashZone)   cashZone.style.display   = (v === 'cash')     ? '' : 'none';
-  }
+// ปุ่มเลือกไฟล์/ถ่ายภาพ
+btnChooseFile?.addEventListener('click', () => { try { slipFile.removeAttribute('capture'); } catch(e) {} slipFile.click(); });
+btnTakePhoto?.addEventListener('click', () => { try { slipFile.setAttribute('capture','environment'); } catch(e) {} slipFile.click(); });
+
+// คลิกพื้นหลัง dropzone = เลือกไฟล์
+dropzone.addEventListener('click', (e) => {
+  if (e.target.closest('#btnChooseFile') || e.target.closest('#btnTakePhoto')) return;
+  try { slipFile.removeAttribute('capture'); } catch(e) {}
+  slipFile.click();
 });
 
-;['dragenter','dragover'].forEach(ev => dropzone.addEventListener(ev, e=>{
-  e.preventDefault(); e.stopPropagation(); dropzone.style.background='#e9f3ff';
-}));
-;['dragleave','drop'].forEach(ev => dropzone.addEventListener(ev, e=>{
-  e.preventDefault(); e.stopPropagation(); dropzone.style.background='#f6faff';
-}));
+// Drag & drop
+;['dragenter','dragover'].forEach(ev => dropzone.addEventListener(ev, e=>{ e.preventDefault(); e.stopPropagation(); dropzone.style.background='#e9f3ff'; }));
+;['dragleave','drop'].forEach(ev => dropzone.addEventListener(ev, e=>{ e.preventDefault(); e.stopPropagation(); dropzone.style.background='#f6faff'; }));
 dropzone.addEventListener('drop', e=>{
   if (e.dataTransfer.files && e.dataTransfer.files[0]) {
     slipFile.files = e.dataTransfer.files;
@@ -1392,12 +2005,20 @@ function renderSlipPreview(){
   };
 }
 
+document.addEventListener('change', (e)=>{
+  if (e.target && e.target.name === 'pmethod') {
+    const v = e.target.value;
+    if (uploadZone) uploadZone.style.display = (v === 'transfer') ? '' : 'none';
+    if (cashZone)   cashZone.style.display   = (v === 'cash')     ? '' : 'none';
+  }
+});
+
+// ส่งฟอร์มอัปโหลด
 frmSlip.addEventListener('submit', async (e)=>{
   e.preventDefault();
   slipMsg.innerHTML = '';
-  if (!slipFile.files || !slipFile.files[0]) { alert('กรุณาเลือกไฟล์สลิป'); return; }
+  if (!slipFile.files || !slipFile.files[0]) { alert('กรุณาเลือก/ถ่ายภาพสลิปก่อน'); return; }
   if (slipFile.files[0].size > 5*1024*1024) { alert('ไฟล์เกิน 5MB'); return; }
-
   btnUpload.disabled = true;
 
   try{
@@ -1405,21 +2026,19 @@ frmSlip.addEventListener('submit', async (e)=>{
     const res = await fetch('front_store.php', { method:'POST', body:fd, credentials:'same-origin' });
     const j = await res.json();
     if (j && j.ok) {
-      slipMsg.innerHTML = '<div class="alert alert-success mb-2">'+ (j.msg||'อัปโหลดสำเร็จ') +'</div>';
-      setTimeout(()=>{
-        closeSlipModal();
-        window.location.href = 'front_store.php?paid=1&oid='+(j.order_id||'');
-      }, 1200);
+      slipMsg.innerHTML = '<div class="alert alert-success mb-2"><i class="bi bi-check2-circle"></i> '+ (j.msg||'อัปโหลดสำเร็จ') +'</div>';
+      setTimeout(()=>{ closeSlipModal(); window.location.href = 'front_store.php?paid=1&oid='+(j.order_id||''); }, 1200);
     } else {
-      slipMsg.innerHTML = '<div class="alert alert-danger mb-2">'+ (j && j.msg ? j.msg : 'อัปโหลดไม่สำเร็จ') +'</div>';
+      slipMsg.innerHTML = '<div class="alert alert-danger mb-2"><i class="bi bi-x-octagon"></i> '+ (j && j.msg ? j.msg : 'อัปโหลดไม่สำเร็จ') +'</div>';
       btnUpload.disabled = false;
     }
   }catch(err){
-    slipMsg.innerHTML = '<div class="alert alert-danger mb-2">เชื่อมต่อไม่สำเร็จ</div>';
+    slipMsg.innerHTML = '<div class="alert alert-danger mb-2"><i class="bi bi-x-octagon"></i> เชื่อมต่อไม่สำเร็จ</div>';
     btnUpload.disabled = false;
   }
 });
 
+// เงินสด
 btnCashConfirm?.addEventListener('click', async ()=>{
   const oid = slipOrderId.value;
   if (!oid) return;
@@ -1432,14 +2051,14 @@ btnCashConfirm?.addEventListener('click', async ()=>{
     const res = await fetch('front_store.php', { method:'POST', body:fd, credentials:'same-origin' });
     const j = await res.json();
     if (j && j.ok) {
-      cashMsg.innerHTML = '<div class="alert alert-success">บันทึกชำระเงินสดแล้ว</div>';
+      cashMsg.innerHTML = '<div class="alert alert-success"><i class="bi bi-cash-coin"></i> บันทึกชำระเงินสดแล้ว</div>';
       setTimeout(()=>{ closeSlipModal(); window.location.href = 'front_store.php?paid=1&oid='+oid; }, 800);
     } else {
-      cashMsg.innerHTML = '<div class="alert alert-danger">'+(j?.msg || 'บันทึกไม่สำเร็จ')+'</div>';
+      cashMsg.innerHTML = '<div class="alert alert-danger"><i class="bi bi-x-octagon"></i> '+(j?.msg || 'บันทึกไม่สำเร็จ')+'</div>';
       btnCashConfirm.disabled = false;
     }
   }catch(_){
-    cashMsg.innerHTML = '<div class="alert alert-danger">เชื่อมต่อไม่สำเร็จ</div>';
+    cashMsg.innerHTML = '<div class="alert alert-danger"><i class="bi bi-x-octagon"></i> เชื่อมต่อไม่สำเร็จ</div>';
     btnCashConfirm.disabled = false;
   }
 });

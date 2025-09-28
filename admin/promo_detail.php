@@ -1,5 +1,5 @@
 <?php
-// admin/promo_detail.php — ดู/แก้ไขโปรโมชัน + ผูก/ถอดเมนู + เปิด/ปิดโปร
+// admin/promo_detail.php — ดู/แก้ไขโปรโมชัน + ผูก/ถอดเมนู + เปิด/ปิดโปร (Dark Teal Theme)
 declare(strict_types=1);
 session_start();
 require __DIR__ . '/../db.php';
@@ -84,7 +84,6 @@ $stmt->close();
 /* ========== ดึงเมนูที่ยังไม่อยู่ในโปรนี้ (ตัวเลือกสำหรับเพิ่ม) ========== */
 $q = trim((string)($_GET['q'] ?? ''));
 if ($q !== '') {
-  // มีค้นหา
   $stmt = $conn->prepare("
     SELECT m.menu_id, m.name
     FROM menu m
@@ -95,7 +94,6 @@ if ($q !== '') {
   $kw = '%'.$q.'%';
   $stmt->bind_param('is', $promo_id, $kw);
 } else {
-  // ไม่มีค้นหา
   $stmt = $conn->prepare("
     SELECT m.menu_id, m.name
     FROM menu m
@@ -120,46 +118,189 @@ $stmt->close();
  href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
 <style>
 :root{
-  --psu-deep-blue:#0D4071; --psu-ocean-blue:#4173BD; --psu-andaman:#0094B3;
-  --psu-sky:#29ABE2; --psu-river:#4EC5E0; --psu-sritrang:#BBB4D8; --ink:#0b2746;
+  --text-strong:#F4F7F8; --text-normal:#E6EBEE; --text-muted:#B9C2C9;
+
+  --bg-grad1:#222831; /* background */
+  --bg-grad2:#393E46;
+
+  --surface:#1C2228;  /* cards */
+  --surface-2:#232A31;
+  --surface-3:#2B323A;
+
+  --ink:#F4F7F8; --ink-muted:#CFEAED;
+
+  --brand-900:#EEEEEE; --brand-700:#BFC6CC;
+  --brand-500:#00ADB5; /* accent */
+  --brand-400:#27C8CF; --brand-300:#73E2E6;
+
+  --ok:#2ecc71; --danger:#e53935;
+
+  --shadow-lg:0 22px 66px rgba(0,0,0,.55);
+  --shadow:   0 14px 32px rgba(0,0,0,.42);
 }
-body{margin:0; background:linear-gradient(135deg,#0D4071,#4173BD); color:#fff; font-family:"Segoe UI",Tahoma,Arial}
-.wrap{max-width:1100px; margin:20px auto; padding:0 14px}
-.cardx{background:rgba(255,255,255,.95); color:var(--ink); border:1px solid #d9e6ff; border-radius:16px; box-shadow:0 12px 28px rgba(0,0,0,.22); padding:16px}
-.topbar{position:sticky; top:0; z-index:50; padding:12px 16px; border-radius:14px;
-  background:rgba(13,64,113,.92); border:1px solid rgba(187,180,216,.25); box-shadow:0 8px 20px rgba(0,0,0,.18); margin-bottom:12px}
-.badge-pillx{ display:inline-block; padding:.3rem .7rem; border-radius:999px; background:#eaf4ff; border:1px solid #cfe2ff; color:#0D4071; font-weight:800 }
-.badge-pill-danger{ background:#ffe8e8; border-color:#ffc9cf; color:#7a1a1a }
-.table thead th{ background:#f2f7ff; color:#083b6a; border-bottom:2px solid #e1ecff; font-weight:800 }
-.table td,.table th{ border-color:#e9f2ff !important; vertical-align: middle !important; }
-.searchbox{background:#fff; border:2px solid var(--psu-ocean-blue); color:#000; border-radius:999px; padding:.4rem .9rem; min-width:260px}
-.btn-ghost{background:var(--psu-andaman); border:1px solid #063d63; color:#fff; font-weight:700}
-.btn-toggle{ font-weight:800 }
+
+html,body{height:100%}
+body{
+  margin:0;
+  background:
+    radial-gradient(900px 360px at 110% -10%, rgba(39,200,207,.18), transparent 65%),
+    linear-gradient(135deg,var(--bg-grad1),var(--bg-grad2));
+  color:var(--text-strong);
+  font-family:"Segoe UI",Tahoma,Arial;
+}
+.wrap{max-width:1100px; margin:22px auto; padding:0 14px}
+
+/* Topbar */
+.topbar{
+  position:sticky; top:0; z-index:50; padding:12px 16px; border-radius:14px;
+  background:rgba(28,34,40,.85); border:1px solid rgba(255,255,255,.08);
+  box-shadow:var(--shadow); backdrop-filter: blur(6px);
+}
+.topbar .btn{ border-radius:12px }
+
+/* Cards */
+.cardx{
+  background: linear-gradient(180deg,var(--surface),var(--surface-2));
+  color: var(--ink);
+  border:1px solid rgba(255,255,255,.06);
+  border-radius:16px;
+  box-shadow: var(--shadow);
+  padding:16px;
+}
+.cardx .muted{ color:var(--text-muted) }
+
+/* Pills / badges */
+.badge-pillx{
+  display:inline-block; padding:.35rem .7rem; border-radius:999px;
+  background:linear-gradient(180deg,rgba(255,255,255,.08),rgba(255,255,255,.04));
+  border:1px solid rgba(255,255,255,.15);
+  color:var(--brand-900); font-weight:800
+}
+.badge-pill-danger{
+  background:rgba(229,57,53,.12); border-color:rgba(229,57,53,.35); color:#ff9f9c
+}
+
+/* Buttons */
+.btn-ghost{
+  background: linear-gradient(180deg, var(--brand-500), #07949B);
+  border:0; color:#061217; font-weight:900; border-radius:12px;
+  box-shadow:0 10px 26px rgba(0,173,181,.25);
+}
+.btn-ghost:hover{ filter:brightness(1.05) }
+.btn-toggle.btn-success{
+  background:linear-gradient(180deg,#2ecc71,#239e57); border:0; color:#061217; border-radius:12px
+}
+.btn-toggle.btn-danger{
+  background:linear-gradient(180deg,#ff6b6b,#e53935); border:0; color:#fff; border-radius:12px
+}
+.btn-outline-light{
+  color:var(--text-normal); border-color:rgba(255,255,255,.25); border-radius:12px; font-weight:800
+}
+.btn-outline-light:hover{ background:rgba(255,255,255,.06) }
+.btn-primary{
+  background:linear-gradient(180deg,#3aa3ff,#1f7ee8); border:0; border-radius:12px; font-weight:900
+}
+
+/* Inputs */
+.searchbox, .form-control, .custom-select{
+  background: var(--surface-3);
+  border:1.5px solid rgba(255,255,255,.12);
+  border-radius:12px;
+  color:var(--text-strong);
+}
+.searchbox::placeholder, .form-control::placeholder{ color:#9aa3ab }
+.searchbox:focus, .form-control:focus, .custom-select:focus{
+  border-color: var(--brand-500);
+  box-shadow: 0 0 0 .2rem rgba(0,173,181,.25);
+  background:#2F373F;
+}
+
+/* Table */
+.table thead th{
+  background:#222a31; color:var(--brand-300);
+  border-bottom:2px solid rgba(255,255,255,.08); font-weight:800
+}
+.table td, .table th{
+  border-color:rgba(255,255,255,.06)!important; color:var(--text-normal); vertical-align: middle !important;
+}
+.table tbody tr:hover td{ background:#20262d; color:var(--text-strong) }
+
+/* Alerts */
+.alert-success{background:rgba(46,204,113,.12);color:#7ee2a6;border:1px solid rgba(46,204,113,.35); border-radius:12px}
+.alert-danger {background:rgba(229,57,53,.12); color:#ff9f9c;border:1px solid rgba(229,57,53,.35); border-radius:12px}
+
+/* Minor helpers */
+.h-title{ color:var(--brand-900); font-weight:900 }
+.small-note{ color:var(--text-muted) }
+/* ===== Force white text in <select> dropdowns on dark theme ===== */
+select,
+.custom-select,
+.form-control {
+  color: var(--text-strong) !important;        /* ข้อความในช่อง */
+}
+
+/* ข้อความภายในรายการตัวเลือก */
+select option,
+.custom-select option,
+select optgroup {
+  color: var(--text-strong) !important;        /* ให้เป็นสีขาว */
+  background-color: var(--surface-3) !important; /* พื้นหลังดรอปดาวน์ */
+}
+
+/* เมื่อเลือกอยู่ (บางเบราว์เซอร์รองรับ) */
+select option:checked,
+.custom-select option:checked {
+  color: #fff !important;
+  background: linear-gradient(180deg, #2a9aa1, #137d84) !important;
+}
+
+/* รายการที่ disabled ให้ดูซีดลงหน่อย */
+select option[disabled],
+.custom-select option[disabled] {
+  color: var(--text-muted) !important;
+}
+
+/* Fix บน WebKit/Chromium (Edge/Chrome) ให้ตัวอักษรขาวชัด */
+@supports (-webkit-appearance: none) {
+  select,
+  .custom-select {
+    -webkit-text-fill-color: var(--text-strong) !important;
+  }
+}
+
+/* ถ้าใช้ size / multiple (list ยาวแบบในภาพ) ให้ช่องสูงอ่านง่ายขึ้น */
+select[size],
+select[multiple] {
+  background-color: var(--surface-3);
+  border-color: rgba(255,255,255,.12);
+  color: var(--text-strong);
+}
+
 </style>
 </head>
 <body>
 <div class="wrap">
 
-  <div class="topbar d-flex align-items-center justify-content-between">
+  <div class="topbar d-flex align-items-center justify-content-between mb-3">
     <div>
-      <div class="h5 m-0 font-weight-bold">รายละเอียดโปรโมชัน • PSU Blue Cafe</div>
-      <small class="text-light">แก้ไขโปร, ผูกเมนู, เปิด/ปิดการใช้งาน</small>
+      <div class="h5 m-0 h-title">รายละเอียดโปรโมชัน • PSU Blue Cafe</div>
+      <small class="small-note">แก้ไขโปร, ผูกเมนู, เปิด/ปิดการใช้งาน</small>
     </div>
-    <div>
-      <a href="promo_list.php" class="btn btn-light btn-sm mr-2">← กลับรายการโปรโมชัน</a>
-      <a href="adminmenu.php" class="btn btn-light btn-sm mr-2">ไปหน้า Admin</a>
-      <a href="../front_store/front_store.php" class="btn btn-sm btn-ghost">ไปหน้าร้าน</a>
+    <div class="d-flex align-items-center">
+      <a href="promo_create.php" class="btn btn-outline-light btn-sm mr-2">← กลับรายการโปรโมชัน</a>
+      <a href="adminmenu.php" class="btn btn-outline-light btn-sm mr-2">ไปหน้า Admin</a>
+      <a href="../front_store/front_store.php" class="btn btn-ghost btn-sm">ไปหน้าร้าน</a>
     </div>
   </div>
 
   <div class="cardx mb-3">
-    <div class="d-flex justify-content-between align-items-start">
-      <div>
-        <div class="h4 mb-1"><?= h($promo['name']) ?></div>
+    <div class="d-flex justify-content-between align-items-start flex-wrap">
+      <div class="mr-3">
+        <div class="h4 mb-2 h-title"><?= h($promo['name']) ?></div>
         <div class="mb-2">
           <span class="badge-pillx">Scope: <?= h($promo['scope']) ?></span>
           <span class="badge-pillx">Type: <?= h($promo['discount_type']) ?></span>
-          <span class="badge-pillx">Value: <?= h($promo['discount_value']) ?></span>
+          <span class="badge-pillx">Value: <?= h($promo['discount_type']==='PERCENT' ? baht($promo['discount_value']).' %' : baht($promo['discount_value']).' ฿') ?></span>
           <?php if($promo['min_order_total']!==null): ?>
             <span class="badge-pillx">Min: <?= baht($promo['min_order_total']) ?> ฿</span>
           <?php endif; ?>
@@ -167,8 +308,8 @@ body{margin:0; background:linear-gradient(135deg,#0D4071,#4173BD); color:#fff; f
             <span class="badge-pillx">Max Disc: <?= baht($promo['max_discount']) ?> ฿</span>
           <?php endif; ?>
         </div>
-        <div class="text-muted">ช่วงเวลา: <strong><?= h($promo['start_at']) ?></strong> → <strong><?= h($promo['end_at']) ?></strong></div>
-        <div class="mt-1">
+        <div class="small-note">ช่วงเวลา: <strong class="text-light"><?= h($promo['start_at']) ?></strong> → <strong class="text-light"><?= h($promo['end_at']) ?></strong></div>
+        <div class="mt-2">
           สถานะ:
           <?php if($promo['is_active']): ?>
             <span class="badge-pillx">✅ กำลังใช้งาน</span>
@@ -180,7 +321,7 @@ body{margin:0; background:linear-gradient(135deg,#0D4071,#4173BD); color:#fff; f
       <div>
         <form method="post" class="m-0">
           <input type="hidden" name="action" value="toggle_active">
-          <button class="btn btn-toggle btn-<?= $promo['is_active']?'danger':'success' ?>">
+          <button class="btn btn-toggle <?= $promo['is_active']?'btn-danger':'btn-success' ?>">
             <?= $promo['is_active']?'ปิดการใช้งาน':'เปิดการใช้งาน' ?>
           </button>
         </form>
@@ -195,7 +336,7 @@ body{margin:0; background:linear-gradient(135deg,#0D4071,#4173BD); color:#fff; f
   <!-- เมนูในโปรนี้ -->
   <div class="cardx mb-3">
     <div class="d-flex justify-content-between align-items-center mb-2">
-      <div class="h5 m-0">เมนูที่อยู่ในโปรโมชันนี้</div>
+      <div class="h5 m-0 h-title">เมนูที่อยู่ในโปรโมชันนี้</div>
     </div>
     <div class="table-responsive">
       <table class="table table-sm mb-0">
@@ -210,7 +351,7 @@ body{margin:0; background:linear-gradient(135deg,#0D4071,#4173BD); color:#fff; f
         </thead>
         <tbody>
           <?php if (empty($menus_in)): ?>
-            <tr><td colspan="5" class="text-center text-muted">ยังไม่มีเมนูในโปรนี้</td></tr>
+            <tr><td colspan="5" class="text-center small-note">ยังไม่มีเมนูในโปรนี้</td></tr>
           <?php else: foreach($menus_in as $m): ?>
             <tr>
               <td><?= (int)$m['menu_id'] ?></td>
@@ -221,7 +362,7 @@ body{margin:0; background:linear-gradient(135deg,#0D4071,#4173BD); color:#fff; f
                 <form method="post" class="d-inline" onsubmit="return confirm('นำเมนูนี้ออกจากโปร?');">
                   <input type="hidden" name="action" value="remove_menu">
                   <input type="hidden" name="menu_id" value="<?= (int)$m['menu_id'] ?>">
-                  <button class="btn btn-sm btn-outline-danger">นำออก</button>
+                  <button class="btn btn-sm btn-outline-light" style="border-color:#ff9f9c;color:#ff9f9c">นำออก</button>
                 </form>
               </td>
             </tr>
@@ -234,7 +375,7 @@ body{margin:0; background:linear-gradient(135deg,#0D4071,#4173BD); color:#fff; f
   <!-- เพิ่มเมนูเข้ากับโปรนี้ -->
   <div class="cardx">
     <div class="d-flex justify-content-between align-items-center mb-2">
-      <div class="h5 m-0">เพิ่มเมนูเข้ากับโปรโมชันนี้</div>
+      <div class="h5 m-0 h-title">เพิ่มเมนูเข้ากับโปรโมชันนี้</div>
       <form class="form-inline" method="get" action="promo_detail.php">
         <input type="hidden" name="id" value="<?= (int)$promo_id ?>">
         <input name="q" class="form-control form-control-sm searchbox mr-2"
