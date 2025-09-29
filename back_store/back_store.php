@@ -1,6 +1,6 @@
 <?php
 // back_store/back_store.php — แสดงออเดอร์ + ตัวช่วยค้นหาเมนู/วันเวลา + PSU Topbar + ดูสลิป (Full fixed) + ดูสูตรเมนู
-// (ตกแต่ง UI: การ์ดคอนทราสต์ชัด, แถบสีซ้าย, ปุ่ม/ชิปอ่านง่าย)
+// (คุมโทน UI ให้เหมือนหน้า front_store)
 
 declare(strict_types=1);
 session_start();
@@ -154,8 +154,9 @@ function money_fmt($n){ return number_format((float)$n,2); }
 <title>หลังร้าน • ค้นหาออเดอร์/ค้างทำ</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
 <style>
-/* ===== Theme (Teal-Graphite, คอนทราสต์สูง) ===== */
+/* ===== Base Theme (เดิม) ===== */
 :root{
   --bg1:#222831; --bg2:#393E46;
   --surface:#1C2228; --surface2:#232A31; --surface3:#2B323A;
@@ -164,34 +165,30 @@ function money_fmt($n){ return number_format((float)$n,2); }
   --accent:#00ADB5; --accent-2:#27C8CF; --accent-3:#73E2E6;
   --ok:#2ecc71; --bad:#e74c3c;
 
-  --cardLight:#0f1820;           /* ใช้กับหัวการ์ด */
-  --cardBg:#0B0F14;              /* ไล่พื้นหลังการ์ด */
-  --cardEdge:#0ad3db;            /* แถบซ้ายการ์ด */
+  --cardLight:#0f1820;
+  --cardBg:#0B0F14;
+  --cardEdge:#0ad3db;
   --cardBorder:rgba(255,255,255,.12);
 
   --shadow:0 14px 34px rgba(0,0,0,.46);
   --shadow-lg:0 22px 66px rgba(0,0,0,.55);
 }
-
-/* ===== Page ===== */
 body{
   background:linear-gradient(135deg,var(--bg1),var(--bg2));
   color:var(--ink); font-family:"Segoe UI",Tahoma,Arial,sans-serif;
 }
 .wrap{max-width:1400px;margin:26px auto;padding:0 16px;}
 .brand{font-weight:900; letter-spacing:.3px}
-
-/* ===== Topbar ===== */
 .topbar{
   position:sticky; top:0; z-index:50; padding:12px 16px; margin:16px auto 12px; border-radius:14px;
   background:color-mix(in oklab, var(--surface), white 6%);
   border:1px solid rgba(255,255,255,.18); box-shadow:0 10px 26px rgba(0,0,0,.38); max-width:1400px;
 }
 .topbar-actions{ gap:8px }
+.topbar-actions .btn .bi{ margin-right:6px; vertical-align:-0.125em; }
 .badge-user{ background:color-mix(in oklab, var(--surface2), white 6%); color:var(--ink); font-weight:800; border-radius:999px; border:1px solid rgba(255,255,255,.22) }
 a.btn.btn-primary.btn-sm{ font-weight:800 }
 
-/* ===== Filter ===== */
 .filter{
   background:color-mix(in oklab, var(--surface2), white 6%);
   border:1px solid rgba(255,255,255,.18); border-radius:14px; padding:12px; box-shadow:0 10px 22px rgba(0,0,0,.32);
@@ -204,10 +201,7 @@ a.btn.btn-primary.btn-sm{ font-weight:800 }
 .filter .form-control:focus{ box-shadow:0 0 0 .18rem rgba(0,173,181,.35) }
 .filter .btn-find,.filter .btn-clear{font-weight:900; border-radius:999px}
 
-/* ===== Cards grid ===== */
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(540px,1fr));gap:18px}
-
-/* การ์ดที่ “ตัดพื้นหลัง” ชัด: ใช้แถบสีซ้าย + กรอบเรือง */
 .card{
   position:relative; overflow:hidden;
   background:
@@ -215,13 +209,11 @@ a.btn.btn-primary.btn-sm{ font-weight:800 }
   color:#e9f2f5; border:1px solid var(--cardBorder); border-radius:18px; box-shadow:var(--shadow);
   transition:transform .18s ease, box-shadow .18s ease, border-color .18s ease;
 }
-.card::before{ /* แถบสีตัดพื้นหลัง */
+.card::before{
   content:""; position:absolute; inset:0 0 0 auto; width:6px; background:linear-gradient(180deg,var(--cardEdge),#1ea5ab);
   left:0; right:auto; border-radius:18px 0 0 18px; opacity:.95;
 }
 .card:hover{ transform:translateY(-3px); box-shadow:var(--shadow-lg); border-color:rgba(255,255,255,.24) }
-
-/* head */
 .head{
   display:flex;justify-content:space-between;align-items:flex-start;
   background:color-mix(in oklab, var(--cardLight), black 2%); border-bottom:1px solid rgba(255,255,255,.12);
@@ -229,8 +221,6 @@ a.btn.btn-primary.btn-sm{ font-weight:800 }
 }
 .oid{font-weight:900;color:#bff6f8}
 .meta{color:#a9bcc7; font-weight:700}
-
-/* lines */
 .line{display:flex;justify-content:space-between;padding:10px 16px;border-bottom:1px dashed rgba(255,255,255,.14)}
 .line:last-child{border-bottom:none}
 .item{font-weight:900;color:#e9fcff}
@@ -239,30 +229,30 @@ a.btn.btn-primary.btn-sm{ font-weight:800 }
   border:1px dashed rgba(0,173,181,.35);border-radius:10px;padding:6px 8px
 }
 .qty{min-width:48px;text-align:center;font-weight:900;background:var(--accent);color:#062b2f;border-radius:999px;padding:4px 10px}
-
-/* summary */
 .summary{
   display:flex;justify-content:space-between;padding:12px 16px 14px;font-weight:900;color:#cfeaed;
   background:color-mix(in oklab, var(--surface3), white 4%); border-top:1px solid rgba(255,255,255,.12)
 }
-
-/* actions */
 .actions{display:flex;gap:10px;background:color-mix(in oklab, var(--surface3), white 4%);border-top:1px solid rgba(255,255,255,.12);padding:12px}
 .btn-ready{flex:1;background:linear-gradient(180deg,#2ecc71,#22b862);color:#042913;font-weight:900;border-radius:12px;padding:10px;border:0}
 .btn-cancel{flex:1;background:linear-gradient(180deg,#ff6b6b,#e74c3c);color:#2a0202;font-weight:900;border-radius:12px;padding:10px;border:0}
 .btn-ready:hover,.btn-cancel:hover{filter:brightness(1.05)}
 .btn-slips{background:linear-gradient(180deg,#00ADB5,#27C8CF);color:#042e31;border:none;border-radius:10px;padding:6px 10px;font-weight:900}
 .btn-slips[disabled]{opacity:.45; cursor:not-allowed; background:color-mix(in oklab, var(--surface3), white 8%); color:#8da5ad}
-
-/* pay chip */
-.pay-chip{ display:inline-flex; align-items:center; gap:6px; border-radius:999px; font-weight:900; padding:4px 10px;
-  border:1px solid rgba(255,255,255,.22); background:rgba(0,173,181,.12); color:#bff6f8; margin-top:6px; }
-.pay-chip.cash{ background:rgba(255,196,0,.12); border-color:rgba(255,196,0,.25); color:#ffe5a4; }
-
-/* empty */
+.pay-chip{
+  display:inline-flex; align-items:center; gap:6px; border-radius:999px; font-weight:900;
+  padding:4px 10px; margin-top:6px; color:#fff; text-shadow:0 1px 0 rgba(0,0,0,.25);
+  box-shadow:0 6px 14px rgba(0,0,0,.18);
+  background:linear-gradient(180deg,#2EA7FF,#1F7EE8);
+  border:1.5px solid #1669C9;
+}
+.pay-chip:hover{ filter:brightness(1.06); }
+.pay-chip.cash{
+  background:linear-gradient(180deg,#22C55E,#16A34A);
+  border-color:#15803D;
+  color:#fff;
+}
 .empty{background:color-mix(in oklab, var(--surface2), white 8%);border:1px dashed rgba(255,255,255,.22);border-radius:12px;padding:24px;text-align:center}
-
-/* Modals / Lightbox (ปรับสีให้เข้าธีม) */
 .psu-modal{ position:fixed; inset:0; display:none; z-index:3000; }
 .psu-modal.is-open{ display:block; }
 .psu-modal__backdrop{ position:absolute; inset:0; background:rgba(0,0,0,.6); backdrop-filter: blur(6px); }
@@ -273,8 +263,6 @@ a.btn.btn-primary.btn-sm{ font-weight:800 }
 .slip-card:hover{ transform:translateY(-2px) }
 .slip-card img{ width:100%; height:220px; object-fit:cover; display:block; background:#0b0f14; user-select:none }
 .slip-meta{ padding:8px; color:#a9bcc7; font-size:.9rem }
-
-/* Lightbox */
 .lb{ position:fixed; inset:0; z-index:4000; display:none; }
 .lb.is-open{ display:block; }
 .lb__backdrop{ position:absolute; inset:0; background:rgba(0,0,0,.9); }
@@ -290,8 +278,6 @@ a.btn.btn-primary.btn-sm{ font-weight:800 }
 .lb__nav{ position:absolute; top:50%; transform:translateY(-50%); display:flex; align-items:center; gap:8px; }
 .lb__prev{ left:10px; } .lb__next{ right:10px; }
 .lb__navbtn{ background:rgba(255,255,255,.12); border:1px solid rgba(255,255,255,.25); color:#e9f2f5; border-radius:12px; padding:10px 14px; font-weight:900; font-size:18px; }
-
-/* ✅ Recipe Modal tone */
 #recipeModal .h5,#recipeModal #rcpTitle{ color:#bff6f8; }
 #recipeModal #rcpBody{ color:#dbf7f9; }
 .rcp-section{ margin-bottom:14px; }
@@ -309,39 +295,61 @@ a.btn.btn-primary.btn-sm{ font-weight:800 }
   .topbar-actions{width:100%; justify-content:flex-end}
   .lb__btn{ padding:6px 8px } .lb__navbtn{ padding:8px 12px }
 }
-/* ปุ่ม "ดูสูตร..." โทนส้ม */
-.btn-recipe{
-  --rc:#FF8A00;                 /* ส้มหลัก */
-  --rc-ink:#2b1700;             /* สีตัวอักษรตอน hover */
-  color:var(--rc);
-  border:1.5px solid var(--rc);
-  background:transparent;
-  font-weight:900;
-  border-radius:10px;
+
+/* ปุ่ม "ดูสูตร…" */
+.btn-recipe,
+.btn-recipe.btn-outline-primary{
+  background: linear-gradient(180deg, #2EA7FF, #1F7EE8) !important;
+  border: 1.5px solid #1669C9 !important;
+  color: #fff !important;
+  font-weight: 900;
+  border-radius: 12px;
+  box-shadow: 0 6px 14px rgba(31,126,232,.28);
+  text-shadow: 0 1px 0 rgba(0,0,0,.25);
 }
 .btn-recipe:hover,
-.btn-recipe:active{
-  background:var(--rc);
-  color:var(--rc-ink);
-  border-color:var(--rc);
-  filter:brightness(1.02);
-}
+.btn-recipe.btn-outline-primary:hover{ filter: brightness(1.06); }
+.btn-recipe:active,
+.btn-recipe.btn-outline-primary:active{ transform: translateY(1px); }
 .btn-recipe:focus-visible{
-  outline:3px solid color-mix(in oklab, var(--rc) 55%, white);
-  outline-offset:2px;
+  outline: 3px solid rgba(46,167,255,.55); outline-offset: 2px;
 }
 
-/* กัน Bootstrap กลับไปเป็นฟ้า */
-.btn-recipe.btn-outline-primary{
-  color:var(--rc) !important;
-  border-color:var(--rc) !important;
+/* ===== OVERRIDE ให้ตรงหน้า front_store ===== */
+:root{
+  --bg1:#11161b; --bg2:#141b22;          /* พื้นหลังน้ำเงินเข้ม */
+  --surface:#1a2230; --surface2:#192231; --surface3:#202a3a;
+  --ink:#e9eef6; --ink-dim:#b9c6d6;
+  --brand-500:#3aa3ff; --brand-400:#7cbcfd; --brand-300:#a9cffd;
 }
-.btn-recipe.btn-outline-primary:hover{
-  color:var(--rc-ink) !important;
-  background:var(--rc) !important;
-  border-color:var(--rc) !important;
+body, .table, .btn, input, label, .badge { font-size:14.5px !important; }
+.topbar, .filter, .card, .psu-modal__dialog {
+  background: var(--surface) !important;
+  border: 1px solid rgba(255,255,255,.08) !important;
+  box-shadow: none !important;
+  border-radius: 12px !important;
 }
-
+.head, .summary, .actions { background: var(--surface2) !important; border-color: rgba(255,255,255,.10) !important; }
+.card::before{ background: var(--brand-500) !important; }
+.badge-user { background: var(--surface3) !important; border:1px solid rgba(255,255,255,.12) !important; color:#eaf2ff !important; }
+.btn-primary, .filter .btn-find, .topbar .btn-primary {
+  background: var(--brand-500) !important;
+  border: 1px solid #1e6acc !important;
+  color: #fff !important;
+  font-weight: 800 !important;
+  box-shadow: none !important;
+}
+.btn-primary:hover{ filter:brightness(1.06); }
+.filter .form-control, .filter .custom-select{
+  background: var(--surface3) !important;
+  border: 1px solid rgba(255,255,255,.12) !important;
+  color: var(--ink) !important;
+}
+.note{
+  background: var(--surface3) !important;
+  border: 1px dashed rgba(255,255,255,.22) !important;
+  color:#dcecf9 !important;
+}
 </style>
 </head>
 <body>
@@ -352,8 +360,15 @@ a.btn.btn-primary.btn-sm{ font-weight:800 }
     <h4 class="m-0 brand">PSU Blue Cafe • หลังร้าน</h4>
   </div>
   <div class="d-flex align-items-center topbar-actions">
-    <a href="back_store_history.php" class="btn btn-primary btn-sm mr-2">ประวัติออเดอร์</a>
-    <a href="../SelectRole/role.php" class="btn btn-primary btn-sm mr-2">ตําเเหน่ง</a>
+    <a href="back_store_history.php" class="btn btn-primary btn-sm mr-2">
+      <i class="bi bi-clipboard2-check"></i> ออเดอร์
+    </a>
+    <a href="../SelectRole/role.php" class="btn btn-primary btn-sm mr-2">
+      <i class="bi bi-person-badge"></i> บทบาท
+    </a>
+        <a href="user_profile.php" class="btn btn-primary btn-sm mr-2">
+      <i class="bi bi-person-circle"></i> ข้อมูลส่วนตัว
+    </a>
     <span class="badge badge-user px-3 py-2 mr-2">ผู้ใช้: <?= htmlspecialchars($_SESSION['username'] ?? '', ENT_QUOTES, 'UTF-8') ?></span>
     <a href="../logout.php" class="btn btn-sm btn-outline-light">ออกจากระบบ</a>
   </div>
@@ -583,7 +598,7 @@ function renderCard(order,lines){
 function hideCard(id){ const card=document.querySelector(`[data-order-id="${id}"]`); if(!card) return; card.style.transition='opacity .2s ease, transform .2s ease'; card.style.opacity='0'; card.style.transform='translateY(-6px)'; setTimeout(()=>card.remove(),200); }
 async function poll(){
   try{
-    const qs=lastSince?('?since='+encodeURIComponent(lastSince)):'';
+    const qs=lastSince?('?since='+encodeURIComponent(lastSince)):''; 
     const r=await fetch(FEED_URL+qs,{cache:'no-store'}); if(!r.ok) throw new Error('HTTP '+r.status);
     const data=await r.json(); if(data.now) lastSince=data.now;
 

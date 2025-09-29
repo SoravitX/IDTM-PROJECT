@@ -1,5 +1,5 @@
 <?php
-// dashboard.php — รายงานสรุป & เมนูขายดี (เพิ่ม KPI: รายได้จากท็อปปิง + ส่วนลดโปรโมชัน) — DARK THEME
+// dashboard.php — รายงานสรุป & เมนูขายดี (KPI: รายได้ท็อปปิง + ส่วนลดโปร) — FRONT_STORE TONE
 declare(strict_types=1);
 session_start();
 if (empty($_SESSION['uid'])) { header("Location: ../index.php"); exit; }
@@ -165,144 +165,125 @@ $displayRange = dt_ymd($range_start->format('Y-m-d'))." → ".dt_ymd($range_end-
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 
 <style>
-/* ====== THEME TOKENS (ตามที่ให้มา) ====== */
+/* ========= FRONT_STORE TONE ========= */
 :root{
-  --text-strong:#F4F7F8;
-  --text-normal:#E6EBEE;
-  --text-muted:#B9C2C9;
+  /* โทนหลัก */
+  --bg1:#11161b; --bg2:#141b22;
+  --surface:#1a2230; --surface-2:#192231; --surface-3:#202a3a;
 
-  --bg-grad1:#222831;     /* background */
-  --bg-grad2:#393E46;
+  --text-strong:#ffffff;
+  --text-normal:#e9eef6;
+  --text-muted:#b9c6d6;
 
-  --surface:#1C2228;      /* cards */
-  --surface-2:#232A31;
-  --surface-3:#2B323A;
+  --brand-500:#3aa3ff;
+  --brand-400:#7cbcfd;
+  --brand-300:#a9cffd;
 
-  --ink:#F4F7F8;
-  --ink-muted:#CFEAED;
+  --ok:#22c55e; --danger:#e53935;
 
-  --brand-900:#EEEEEE;
-  --brand-700:#BFC6CC;
-  --brand-500:#00ADB5;    /* accent */
-  --brand-400:#27C8CF;
-  --brand-300:#73E2E6;
-
-  --ok:#2ecc71; --danger:#e53935;
-
-  --shadow-lg:0 22px 66px rgba(0,0,0,.55);
-  --shadow:   0 14px 32px rgba(0,0,0,.42);
+  --shadow: none; --shadow-lg:none;
 }
 
-/* ====== Base ====== */
 body{
-  background: radial-gradient(800px 400px at 100% -10%, rgba(0,173,181,.15), transparent 60%),
-              linear-gradient(135deg,var(--bg-grad1),var(--bg-grad2));
+  background: linear-gradient(180deg,var(--bg1),var(--bg2));
   color: var(--text-normal);
   font-family:"Segoe UI",Tahoma,Arial,sans-serif;
 }
 .wrap{ max-width:1400px; margin:18px auto; padding:0 12px; }
 
-/* ====== Topbar ====== */
+/* Topbar */
 .topbar{
   position:sticky; top:0; z-index:50; padding:12px 16px; margin-bottom:14px;
-  border-radius:14px; background:rgba(28,34,40,.92);
-  border:1px solid rgba(255,255,255,.06); box-shadow:var(--shadow);
+  border-radius:10px;
+  background: var(--surface);
+  border:1px solid rgba(255,255,255,.08);
+  box-shadow: none;
 }
 .brand{font-weight:900; letter-spacing:.3px; color:var(--text-strong); margin:0; display:flex; align-items:center; gap:8px}
 .topbar-actions{ gap:8px; }
-.badge-user{ background:var(--surface-2); color:var(--text-strong); font-weight:800; border-radius:999px; border:1px solid rgba(255,255,255,.08); }
-.topbar .btn-primary{
-  background: linear-gradient(180deg,var(--brand-400),var(--brand-500));
-  border-color: var(--brand-500); font-weight:800; color:#072e31;
+.badge-user{ background: var(--surface-3); color: var(--text-strong); font-weight:800; border-radius:999px; border:1px solid rgba(255,255,255,.12); }
+.topbar .btn-primary,
+.btn-primary.btn-export{
+  background: var(--brand-500) !important;
+  border: 1px solid #1e6acc !important;
+  color:#fff !important; font-weight:800 !important; box-shadow:none !important;
 }
-.btn-outline-light{ color:var(--brand-900); border-color: rgba(255,255,255,.25); }
+.btn-outline-light{ color:#eaf2ff; border:1px solid rgba(255,255,255,.18); }
 
-/* ====== Cards ====== */
+/* Card */
 .cardx{
-  background: var(--surface); color: var(--ink);
-  border:1px solid rgba(255,255,255,.06);
-  border-radius:16px; box-shadow:var(--shadow);
+  background: var(--surface); color: var(--text-normal);
+  border:1px solid rgba(255,255,255,.08);
+  border-radius:10px; box-shadow:none;
 }
 .cardx .card-head{
-  padding:10px 14px; border-bottom:1px solid rgba(255,255,255,.08);
-  background: var(--surface-2); color: var(--ink);
+  padding:10px 14px; border-bottom:1px solid rgba(255,255,255,.10);
+  background: var(--surface-2); color: var(--text-strong);
 }
 
-/* ====== KPI grid ====== */
+/* KPI grid */
 .kpi{ display:grid; grid-template-columns: repeat(6, minmax(180px,1fr)); gap:12px; }
 .kpi .tile{
-  padding:14px 16px; border-radius:14px; background:
-    radial-gradient(140px 40px at 85% -10%, rgba(0,173,181,.15), transparent 60%),
-    var(--surface-2);
-  border:1px solid rgba(255,255,255,.08); position:relative; overflow:hidden;
+  padding:14px 16px; border-radius:10px;
+  background: var(--surface-2);
+  border:1px solid rgba(255,255,255,.10); position:relative; overflow:hidden;
 }
-.kpi .tile .ico{ position:absolute; right:10px; top:8px; font-size:1.4rem; opacity:.18; color:var(--brand-300); }
-.kpi .n{ font-size:1.6rem; font-weight:900; color:var(--brand-300) }
-.kpi .l{ font-weight:800; color:var(--brand-900); opacity:.95; display:flex; align-items:center; gap:8px }
+.kpi .tile .ico{ position:absolute; right:10px; top:8px; font-size:1.4rem; opacity:.25; color:var(--brand-300); }
+.kpi .n{ font-size:1.6rem; font-weight:900; color:#fff }
+.kpi .l{ font-weight:800; color:#eaf2ff; display:flex; align-items:center; gap:8px }
 
-/* ====== Utils ====== */
+/* Utils */
 .badge-lightx{
-  background:var(--surface-3); color:var(--brand-900);
-  border:1px solid rgba(255,255,255,.10); border-radius:999px;
+  background:var(--surface-3); color:#eaf2ff;
+  border:1px solid rgba(255,255,255,.12); border-radius:999px;
   padding:.25rem .6rem; font-weight:800
 }
 
-/* ====== Filter ====== */
+/* Filter controls */
 .form-control, .custom-select{
   background: var(--surface-3);
-  color: var(--ink);
+  color: var(--text-normal);
   border:1px solid rgba(255,255,255,.12);
+  border-radius:10px;
 }
 .form-control::placeholder{ color: rgba(255,255,255,.45); }
 .form-control:focus, .custom-select:focus{
-  box-shadow: 0 0 0 .2rem rgba(39,200,207,.2);
-  border-color: var(--brand-400);
+  box-shadow: none; border-color: rgba(122,184,255,.6);
 }
-.btn-success{ background:var(--ok); border-color:var(--ok); font-weight:800; }
-.btn-primary.btn-export{
-  background: linear-gradient(180deg,var(--brand-400),var(--brand-500));
-  border-color: var(--brand-500); color:#072e31; font-weight:800;
+.btn-success{
+  background: var(--ok); border:1px solid #15803D; font-weight:800; color:#06260f;
 }
 
-/* ====== Table ====== */
+/* Table */
 .table thead th{
-  background: var(--surface-2); color: var(--ink);
-  border-bottom:2px solid rgba(255,255,255,.08);
+  background: var(--surface-2); color: var(--text-strong);
+  border-bottom:1px solid rgba(255,255,255,.10);
   font-weight:800;
 }
-.table td, .table th{ border-color: rgba(255,255,255,.08) !important; }
-.table tbody tr:hover td{ background: rgba(255,255,255,.03); }
+.table td, .table th{ border-color: rgba(255,255,255,.10) !important; }
+.table tbody td, .table tbody th { color: var(--text-normal); }
+.table tbody td:first-child { color: var(--text-strong); font-weight:800; }
+.table tbody td.text-right { color: var(--brand-300); font-weight:800; }
+.table tbody tr:hover td{ background: rgba(255,255,255,.03); color: var(--text-strong); }
 
-/* ====== Responsive ====== */
-@media (max-width: 1100px){
-  .kpi{ grid-template-columns: repeat(2, minmax(180px,1fr)); }
-}
+/* Responsive */
+@media (max-width: 1100px){ .kpi{ grid-template-columns: repeat(2, minmax(180px,1fr)); } }
 
-/* ====== Chart canvas ====== */
+/* Canvas */
 canvas{ background: transparent; }
-/* === Fix: table body text colors on dark theme === */
-.table tbody td,
-.table tbody th { 
-  color: var(--text-normal);         /* สีพื้นฐานของแถวข้อมูล */
+/* === Admin button: Front_Store blue === */
+.btn-admin{
+  background: linear-gradient(180deg, #56b2ff, #3aa3ff);
+  border: 1px solid #1e6acc;
+  color:#fff !important;
+  font-weight:900;
+  border-radius:12px;
+  padding:.35rem .8rem;
+  box-shadow:0 8px 22px rgba(58,163,255,.28);
 }
-
-/* คอลัมน์ชื่อเมนูให้สว่างกว่าหน่อย */
-.table tbody td:first-child {
-  color: var(--text-strong);
-  font-weight: 800;
-}
-
-/* คอลัมน์ตัวเลขชิดขวาให้ใช้โทน accent อ่อน */
-.table tbody td.text-right {
-  color: var(--brand-300);
-  font-weight: 800;
-}
-
-/* แถว hover ให้ยังคงอ่านง่าย */
-.table tbody tr:hover td {
-  background: rgba(255,255,255,.03);
-  color: var(--text-strong);
-}
+.btn-admin .bi{ margin-right:.35rem; }
+.btn-admin:hover{ filter:brightness(1.05); transform:translateY(-1px); color:#fff !important; }
+.btn-admin:focus{ outline:3px solid rgba(58,163,255,.35); outline-offset:2px; }
 
 </style>
 </head>
@@ -313,11 +294,11 @@ canvas{ background: transparent; }
   <div class="topbar d-flex align-items-center justify-content-between">
     <h4 class="brand mb-0"><i class="bi bi-speedometer2"></i> PSU Blue Cafe • Dashboard</h4>
     <div class="d-flex align-items-center topbar-actions">
-      <a href="adminmenu.php" class="btn btn-light btn-sm"><i class="bi bi-gear"></i> Admin</a>
-      <span class="badge badge-user px-3 py-2">
-        <i class="bi bi-person-badge"></i>
-        ผู้ใช้: <?= htmlspecialchars($_SESSION['username'] ?? ($_SESSION['name'] ?? ''), ENT_QUOTES, 'UTF-8') ?>
-      </span>
+<a href="adminmenu.php" class="btn btn-admin btn-sm">
+  <i class="bi bi-gear"></i> เมนูเเอดมิน
+</a>
+
+     
       <a href="../logout.php" class="btn btn-sm btn-outline-light"><i class="bi bi-box-arrow-right"></i> ออกจากระบบ</a>
     </div>
   </div>
@@ -325,7 +306,7 @@ canvas{ background: transparent; }
   <!-- Header -->
   <div class="d-flex align-items-center justify-content-between mb-3">
     <div class="d-flex align-items-center flex-wrap">
-      <h3 class="mb-0 mr-3" style="font-weight:900;display:flex;align-items:center;gap:8px;color:var(--brand-900)">
+      <h3 class="mb-0 mr-3" style="font-weight:900;display:flex;align-items:center;gap:8px;color:#eaf2ff">
         <i class="bi bi-graph-up-arrow"></i> ภาพรวม
       </h3>
       <span class="badge badge-lightx"><i class="bi bi-calendar2-week"></i> ช่วงที่แสดง: <?= htmlspecialchars($displayRange,ENT_QUOTES,'UTF-8') ?></span>
@@ -399,7 +380,7 @@ canvas{ background: transparent; }
       <div class="tile" title="ส่วนลดที่มอบให้จากโปรโมชัน">
         <div class="ico"><i class="bi bi-ticket-perforated"></i></div>
         <div class="l"><i class="bi bi-tags-fill"></i> ส่วนลดที่ให้ไป (โปรโมชัน)</div>
-        <div class="n" style="color:#ff9a97">-<?= money_fmt($extra['discount_total'] ?? 0) ?> ฿</div>
+        <div class="n" style="color:#ffb4b0">-<?= money_fmt($extra['discount_total'] ?? 0) ?> ฿</div>
       </div>
     </div>
   </div>
@@ -444,7 +425,7 @@ canvas{ background: transparent; }
         <div class="card-head"><div class="font-weight-bold"><i class="bi bi-bar-chart"></i> กราฟภาพรวม</div></div>
         <div class="p-3">
           <canvas id="chartTop" height="180" aria-label="Top5 items chart"></canvas>
-          <hr style="border-color:rgba(255,255,255,.08)">
+          <hr style="border-color:rgba(255,255,255,.10)">
           <canvas id="chartStatus" height="160" aria-label="Order status chart"></canvas>
         </div>
       </div>
@@ -453,24 +434,28 @@ canvas{ background: transparent; }
 </div>
 
 <script>
-// Top 5 bar
+// Top 5 bar — ใช้ฟ้าโทนเดียวกับหน้า front_store
 const topLabels = <?= json_encode(array_column($chartItems,'name'), JSON_UNESCAPED_UNICODE) ?>;
 const topQty    = <?= json_encode(array_map('intval', array_column($chartItems,'qty'))) ?>;
 new Chart(document.getElementById('chartTop'), {
   type: 'bar',
-  data: { labels: topLabels, datasets: [{ label: 'จำนวน (แก้ว)', data: topQty,
-    backgroundColor: 'rgba(0,173,181,0.35)',
-    borderColor: 'rgba(39,200,207,0.9)', borderWidth: 1 }]},
+  data: { labels: topLabels, datasets: [{
+    label: 'จำนวน (แก้ว)',
+    data: topQty,
+    backgroundColor: 'rgba(58,163,255,0.35)',
+    borderColor: '#3aa3ff',
+    borderWidth: 1.2
+  }]},
   options: {
     plugins:{ legend:{ display:false } },
     scales:{
-      x:{ ticks:{ color:'#B9C2C9' }, grid:{ color:'rgba(255,255,255,.06)' } },
-      y:{ beginAtZero:true, ticks:{ color:'#B9C2C9' }, grid:{ color:'rgba(255,255,255,.06)' } }
+      x:{ ticks:{ color:'#b9c6d6' }, grid:{ color:'rgba(255,255,255,.08)' } },
+      y:{ beginAtZero:true, ticks:{ color:'#b9c6d6' }, grid:{ color:'rgba(255,255,255,.08)' } }
     }
   }
 });
 
-// Status donut
+// Status donut — โทนฟ้าสามเฉด + เขียว/แดงเสริม
 const stLabels = <?= json_encode(array_column($byStatus,'status'), JSON_UNESCAPED_UNICODE) ?>;
 const stData   = <?= json_encode(array_map('intval', array_column($byStatus,'c'))) ?>;
 new Chart(document.getElementById('chartStatus'), {
@@ -479,11 +464,13 @@ new Chart(document.getElementById('chartStatus'), {
     labels: stLabels,
     datasets: [{
       data: stData,
-      backgroundColor: ['#00ADB5','#27C8CF','#73E2E6','#e53935','#2ecc71','#BFC6CC'],
-      borderColor: 'rgba(0,0,0,0)',
+      backgroundColor: ['#3aa3ff','#7cbcfd','#a9cffd','#e53935','#22c55e','#8899aa'],
+      borderColor: 'transparent'
     }]
   },
-  options: { plugins:{ legend:{ position:'bottom', labels:{ color:'#E6EBEE' } } } }
+  options: {
+    plugins:{ legend:{ position:'bottom', labels:{ color:'#e9eef6' } } }
+  }
 });
 </script>
 </body>

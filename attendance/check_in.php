@@ -1,9 +1,6 @@
 <?php
 // SelectRole/check_in.php — ลงเวลาทำงาน (Attendance)
-// + จำกัดช่วงเช็คอิน (เวลาไทยตรงกัน PHP/MySQL)
-// + Auto checkout หลังเลิกงาน 5 นาที
-// + Toggle ซ่อน/แสดง "บันทึกล่าสุด"
-// + UI Theme: Teal-Graphite (เข้ม อ่านง่าย)
+// Deep Blue theme • เวลาไทยตรง PHP/MySQL • Auto checkout + Toggle logs
 declare(strict_types=1);
 session_start();
 if (empty($_SESSION['uid'])) { header("Location: ../index.php"); exit; }
@@ -223,34 +220,34 @@ $stmt->close();
  href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
 
 <style>
-/* ===== Teal-Graphite Theme Tokens ===== */
+/* ===== Deep Blue Theme Tokens (match login/front_store) ===== */
 :root{
-  --text-strong:#F4F7F8;
-  --text-normal:#E6EBEE;
-  --text-muted:#B9C2C9;
+  --text-strong:#ffffff;
+  --text-normal:#e9eef6;
+  --text-muted:#b9c6d6;
 
-  --bg-grad1:#222831;     /* background */
-  --bg-grad2:#393E46;
+  --bg-grad1:#11161b;     /* background */
+  --bg-grad2:#141b22;
 
-  --surface:#1C2228;      /* cards */
-  --surface-2:#232A31;
-  --surface-3:#2B323A;
+  --surface:#1a2230;      /* cards */
+  --surface-2:#192231;
+  --surface-3:#202a3a;
 
-  --ink:#F4F7F8;
-  --ink-muted:#CFEAED;
+  --ink:#e9eef6;
+  --ink-muted:#b9c6d6;
 
-  --brand-900:#EEEEEE;
-  --brand-700:#BFC6CC;
-  --brand-500:#00ADB5;    /* accent */
-  --brand-400:#27C8CF;
-  --brand-300:#73E2E6;
+  --brand-900:#f1f6ff;
+  --brand-700:#d0d9e6;
+  --brand-500:#3aa3ff;    /* accent */
+  --brand-400:#7cbcfd;
+  --brand-300:#a9cffd;
 
-  --ok:#2ecc71; --danger:#e53935;
+  --ok:#22c55e; --danger:#e53935;
 
-  --shadow-lg:0 22px 66px rgba(0,0,0,.55);
-  --shadow:   0 14px 32px rgba(0,0,0,.42);
+  --shadow-lg:none;
+  --shadow:none;
 
-  --ring:#73E2E6;
+  --ring:#7cbcfd;
   --radius:14px;
 }
 
@@ -263,44 +260,51 @@ body{
 
 /* ===== Top header ===== */
 .headbar{
-  background:color-mix(in oklab, var(--surface), white 6%);
-  border:1px solid color-mix(in oklab, var(--brand-700), black 20%);
+  background: var(--surface);
+  border:1px solid rgba(255,255,255,.08);
   border-radius:var(--radius);
-  padding:12px 16px; box-shadow:0 8px 20px rgba(0,0,0,.35);
+  padding:12px 16px;
 }
 .headbar .h5{letter-spacing:.2px}
 .headbar .btn{border-radius:12px;font-weight:800}
 
+/* ปุ่มย้อนกลับ = กรอบฟ้า, ออกจากระบบ = แดง */
+.headbar .btn.btn-outline-light{
+  background:transparent; color:var(--ink); border:1px solid rgba(255,255,255,.18);
+}
+.headbar a.btn.btn-sm:last-child{
+  background: linear-gradient(180deg, #ff6b6b, #e94444);
+  border:1px solid #c22f2f; color:#fff;
+}
+
 /* ===== Info chip ===== */
 .hint{
-  background:color-mix(in oklab, var(--surface-2), white 6%);
+  background: var(--surface-2);
   color:var(--text-normal);
-  border:1px solid color-mix(in oklab, var(--brand-700), black 22%);
+  border:1px solid rgba(255,255,255,.10);
   border-radius:var(--radius); padding:12px 14px; margin-bottom:12px; font-weight:700;
-  box-shadow:0 8px 18px rgba(0,0,0,.25);
 }
 
 /* ===== Server time ===== */
 .debug{
-  background:#fff4e5; color:#663c00; border:1px dashed #f0ad4e;
+  background:#17202a; color:#cfe0ff; border:1px dashed rgba(122,164,255,.45);
   border-radius:10px; padding:8px 12px; font-size:.9rem;
 }
 
 /* ===== Card ===== */
 .cardx{
-  background:color-mix(in oklab, var(--surface), white 6%);
-  border:1px solid color-mix(in oklab, var(--brand-700), black 22%);
-  border-radius:16px; box-shadow:var(--shadow);
+  background: var(--surface);
+  border:1px solid rgba(255,255,255,.08);
+  border-radius:16px;
 }
 
 /* ===== Status bar ===== */
 .stat{
   background:var(--surface-2);
   color:var(--ink);
-  border:1px solid color-mix(in oklab, var(--brand-700), black 22%);
+  border:1px solid rgba(255,255,255,.10);
   border-radius:16px; padding:16px;
   display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap;
-  box-shadow:0 8px 24px rgba(0,0,0,.25);
 }
 .badge-open{
   background:#FFE08A; color:#2b1a00; font-weight:900; border-radius:999px; padding:.35rem .6rem
@@ -312,9 +316,9 @@ body{
 
 .badge-ht{ display:inline-block; padding:.2rem .55rem; border-radius:999px; font-weight:900; }
 .badge-ht-normal{
-  background: color-mix(in oklab, var(--surface-3), white 8%);
+  background: var(--surface-3);
   color: var(--brand-300);
-  border:1px solid color-mix(in oklab, var(--brand-700), black 20%);
+  border:1px solid rgba(255,255,255,.12);
 }
 .badge-ht-fund{
   background: color-mix(in oklab, var(--ok), black 20%);
@@ -324,25 +328,17 @@ body{
 
 /* ===== Buttons ===== */
 .btn-ci{
-  background:linear-gradient(180deg,var(--brand-500),var(--brand-400));
-  border:0; color:#062b33; font-weight:900; border-radius:12px; padding:.55rem 1.1rem;
-  box-shadow:var(--shadow);
+  background: var(--brand-500);
+  border:1px solid #1e6acc; color:#fff; font-weight:900; border-radius:12px; padding:.55rem 1.1rem;
 }
 .btn-ci:hover{ filter:brightness(1.05) }
 .btn-ci:disabled{ opacity:.6; cursor:not-allowed; }
 
 .btn-co{
   background:linear-gradient(180deg,#ff6b6b,#e94444);
-  border:0; color:#2a0202; font-weight:900; border-radius:12px; padding:.55rem 1.1rem;
-  box-shadow:var(--shadow);
+  border:1px solid #c22f2f; color:#fff; font-weight:900; border-radius:12px; padding:.55rem 1.1rem;
 }
 .btn-co:disabled{ opacity:.5; cursor:not-allowed; }
-
-/* ปุ่มออกจากระบบในหัวให้แดง */
-.headbar a.btn.btn-sm:last-child{
-  background: linear-gradient(180deg, #ff6b6b, #e94444);
-  border:1px solid #c22f2f; color:#fff;
-}
 
 /* ===== Logs table ===== */
 .table-logs{
@@ -352,26 +348,26 @@ body{
 }
 .table-logs thead th{
   background:var(--surface-2); color:var(--text-strong);
-  border-bottom:2px solid color-mix(in oklab, var(--brand-400), white 35%); font-weight:900;
+  border-bottom:2px solid rgba(124,188,253,.35); font-weight:900;
 }
-.table-logs td,.table-logs th{ border-color: color-mix(in oklab, var(--brand-700), white 65%) !important; vertical-align:middle!important }
-.table-logs tbody tr:hover td{ background:color-mix(in oklab, var(--surface-3), white 8%); }
+.table-logs td,.table-logs th{ border-color: rgba(255,255,255,.14) !important; vertical-align:middle!important }
+.table-logs tbody tr:hover td{ background:var(--surface-3); }
 
 /* ===== Toggle button ===== */
 .toggle-btn{
   border-radius:999px;font-weight:800;
-  background:color-mix(in oklab, var(--surface-2), white 6%);
+  background:var(--surface-2);
   color:var(--brand-900);
-  border:1px solid color-mix(in oklab, var(--brand-700), black 22%);
+  border:1px solid rgba(255,255,255,.14);
 }
 .toggle-btn:hover{ filter:brightness(1.03) }
 
 /* a11y + details */
 :focus-visible{ outline:3px solid var(--ring); outline-offset:2px; border-radius:10px }
 *::-webkit-scrollbar{width:10px;height:10px}
-*::-webkit-scrollbar-thumb{background:#2e3a44;border-radius:10px}
-*::-webkit-scrollbar-thumb:hover{background:#3a4752}
-*::-webkit-scrollbar-track{background:#151a20}
+*::-webkit-scrollbar-thumb{background:#2b3540;border-radius:10px}
+*::-webkit-scrollbar-thumb:hover{background:#34404c}
+*::-webkit-scrollbar-track{background:#141a21}
 
 /* ลมหายใจเล็ก ๆ เมื่ออยู่ในช่วงเช็คอิน */
 .pulse{ animation:pulse 1.3s ease-in-out infinite }
@@ -394,7 +390,7 @@ body{
       </small>
     </div>
     <div>
-      <a href="../SelectRole/role.php" class="btn btn-sm btn-outline-light">ย้อนกลับ</a>
+      <a href="../SelectRole/role.php" class="btn btn-sm btn-outline-light"><i class="bi bi-arrow-left"></i> ย้อนกลับ</a>
       <a href="../logout.php" class="btn btn-sm"><i class="bi bi-box-arrow-right"></i> ออกจากระบบ</a>
     </div>
   </div>
@@ -412,7 +408,7 @@ body{
   </div>
 
   <?php if($msg): ?>
-    <div class="alert" style="background:var(--ok);color:#fff;border:none;border-radius:10px"><i class="bi bi-check2-circle"></i> <?= h($msg) ?></div>
+    <div class="alert" style="background:var(--ok);color:#0b2a17;border:none;border-radius:10px"><i class="bi bi-check2-circle"></i> <?= h($msg) ?></div>
   <?php endif; ?>
   <?php if($err): ?>
     <div class="alert" style="background:var(--danger);color:#fff;border:none;border-radius:10px"><i class="bi bi-x-octagon"></i> <?= h($err) ?></div>
@@ -516,33 +512,4 @@ body{
 </div>
 
 <script>
-function confirmCheckin(){
-  var btn = document.querySelector('.btn-ci');
-  if (btn && btn.hasAttribute('disabled')) {
-    alert('เช็คอินได้เฉพาะ <?= h($windows_all_txt) ?>');
-    return false;
-  }
-  return true;
-}
-
-// Toggle logs show/hide + remember
-(function(){
-  const KEY = 'psu.attn.logs.hidden';
-  const btn = document.getElementById('toggleLogs');
-  const box = document.getElementById('logsBox');
-
-  function applyHidden(hide){
-    box.style.display = hide ? 'none' : '';
-    btn.textContent = hide ? 'แสดงบันทึกล่าสุด' : 'ซ่อนบันทึกล่าสุด';
-  }
-  try { applyHidden(localStorage.getItem(KEY) === '1'); } catch(e){}
-
-  btn.addEventListener('click', ()=>{
-    const hide = box.style.display !== 'none';
-    applyHidden(hide);
-    try { localStorage.setItem(KEY, hide ? '1':'0'); } catch(e){}
-  });
-})();
-</script>
-</body>
-</html>
+function

@@ -454,7 +454,7 @@ body, .table, .btn, input, label, .badge, .pill{ font-size:14.5px !important; }
     </div>
     <div class="d-flex align-items-center" style="gap:8px">
       <div class="clock"><i class="bi bi-clock"></i><span id="nowClock">--:--:--</span></div>
-      <a href="front_store.php" class="btn btn-sm btn-outline-light"><i class="bi bi-box-arrow-left"></i> กลับหน้าเมนู</a>
+      <a href="back_store.php" class="btn btn-sm btn-outline-light"><i class="bi bi-box-arrow-left"></i> กลับหน้าเมนู</a>
     </div>
   </div>
 

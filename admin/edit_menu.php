@@ -1,5 +1,5 @@
 <?php
-// admin/edit_menu.php — Dark Teal-Graphite theme + Preview / Drag&Drop / Validate
+// admin/edit_menu.php — Deep Blue theme + Preview / Drag&Drop / Validate
 declare(strict_types=1);
 include '../db.php';
 
@@ -85,43 +85,42 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>แก้ไขเมนู • Dark</title>
+<title>แก้ไขเมนู • Deep Blue</title>
 <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" />
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
 <style>
+/* ========= Deep Blue palette (match login/front_store) ========= */
 :root{
-  --text-strong:#F4F7F8;
-  --text-normal:#E6EBEE;
-  --text-muted:#B9C2C9;
+  --text-strong:#ffffff;
+  --text-normal:#e9eef6;
+  --text-muted:#b9c6d6;
 
-  --bg-grad1:#222831;     /* background */
-  --bg-grad2:#393E46;
+  --bg-grad1:#11161b;     /* background */
+  --bg-grad2:#141b22;
 
-  --surface:#1C2228;      /* cards */
-  --surface-2:#232A31;
-  --surface-3:#2B323A;
+  --surface:#1a2230;      /* cards */
+  --surface-2:#192231;
+  --surface-3:#202a3a;
 
-  --ink:#F4F7F8;
-  --ink-muted:#CFEAED;
+  --ink:#e9eef6;
+  --ink-muted:#b9c6d6;
 
-  --brand-900:#EEEEEE;
-  --brand-700:#BFC6CC;
-  --brand-500:#00ADB5;    /* accent */
-  --brand-400:#27C8CF;
-  --brand-300:#73E2E6;
+  --brand-900:#f1f6ff;
+  --brand-700:#d0d9e6;
+  --brand-500:#3aa3ff;    /* accent */
+  --brand-400:#7cbcfd;
+  --brand-300:#a9cffd;
 
-  --ok:#2ecc71; --danger:#e53935;
+  --ok:#22c55e; 
+  --danger:#e53935;
 
-  --shadow-lg:0 22px 66px rgba(0,0,0,.55);
-  --shadow:   0 14px 32px rgba(0,0,0,.42);
+  --shadow-lg:none;
+  --shadow:none;
 }
 
 html,body{height:100%}
 body{
-  background:
-    radial-gradient(900px 350px at 110% -60%, rgba(0,173,181,.14), transparent 60%),
-    radial-gradient(900px 350px at -15% -120%, rgba(115,226,230,.12), transparent 60%),
-    linear-gradient(135deg,var(--bg-grad1),var(--bg-grad2));
+  background:linear-gradient(135deg,var(--bg-grad1),var(--bg-grad2));
   color:var(--text-normal);
   font-family:'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
   display:flex; align-items:center; justify-content:center;
@@ -133,57 +132,55 @@ a, a:hover{ color:var(--brand-400); text-decoration:none }
 .wrap{width:100%; max-width:820px}
 .card{
   background:var(--surface);
-  border:1px solid rgba(255,255,255,.06);
+  border:1px solid rgba(255,255,255,.08);
   border-radius:18px;
-  box-shadow:var(--shadow-lg);
+  box-shadow:none;
   overflow:hidden;
   color:var(--text-normal);
 }
 .card-head{
   padding:18px 22px;
-  background:
-    radial-gradient(320px 120px at 110% -40%, rgba(0,173,181,.22), transparent 70%),
-    linear-gradient(180deg,var(--surface-2),var(--surface));
-  border-bottom:1px solid rgba(255,255,255,.06);
+  background: var(--surface-2);
+  border-bottom:1px solid rgba(255,255,255,.10);
   display:flex; align-items:center; justify-content:space-between;
 }
 .title{ margin:0; font-weight:900; color:var(--text-strong); letter-spacing:.2px }
 .crumb .btn{ font-weight:800 }
 
 .card-body{ padding:22px }
-label{ font-weight:700; color:var(--brand-900) }
+label{ font-weight:700; color:var(--brand-300) }
 .form-control, .custom-select{
-  background:var(--surface-2);
-  border:2px solid rgba(255,255,255,.08);
+  background:var(--surface-3);
+  border:1.5px solid rgba(255,255,255,.12);
   color:var(--text-normal);
   border-radius:12px; padding:.65rem .9rem;
   transition:border-color .18s, box-shadow .18s, background .18s;
 }
 .form-control::placeholder{ color:#9da6ae }
 .form-control:focus, .custom-select:focus{
-  background:var(--surface-3);
-  border-color:rgba(0,173,181,.55);
-  box-shadow:0 0 0 .18rem rgba(0,173,181,.25);
+  background:#202a3a;
+  border-color:var(--brand-500);
+  box-shadow:0 0 0 .18rem rgba(58,163,255,.25);
   color:var(--text-strong);
 }
 .custom-select{ appearance:none; -moz-appearance:none; -webkit-appearance:none; }
-.help{ font-size:.85rem; color:#9fb3bd }
+.help{ font-size:.85rem; color:#a6b6c4 }
 
 .img-preview{
   display:block; width:200px; height:200px; object-fit:cover;
-  border-radius:14px; border:1px solid rgba(255,255,255,.08); background:#111;
-  box-shadow:0 6px 18px rgba(0,0,0,.45);
+  border-radius:14px; border:1px solid rgba(255,255,255,.10); background:#0f141a;
+  box-shadow:none;
 }
 
 .pill{
   display:inline-flex; align-items:center; gap:6px; padding:6px 10px;
-  border-radius:999px; font-weight:800; border:1px solid rgba(255,255,255,.12);
+  border-radius:999px; font-weight:800; border:1px solid rgba(255,255,255,.14);
   background:var(--surface-2); color:var(--text-normal);
 }
 
 /* Upload zone */
 .dropzone{
-  border:2px dashed rgba(0,173,181,.55); border-radius:14px; padding:16px;
+  border:2px dashed rgba(58,163,255,.55); border-radius:14px; padding:16px;
   background:var(--surface-2); transition:all .15s;
   text-align:center; color:var(--brand-300);
 }
@@ -192,17 +189,16 @@ label{ font-weight:700; color:var(--brand-900) }
 
 /* Buttons */
 .btn-main{
-  background:linear-gradient(180deg,var(--brand-500),#0f8c92);
-  color:#081316; border:0; font-weight:900;
+  background: var(--brand-500);
+  color:#fff; border:1px solid #1e6acc; font-weight:900;
   padding:.85rem 1.15rem; border-radius:14px; min-width:220px;
-  box-shadow:0 12px 30px rgba(0,173,181,.35);
 }
-.btn-main:hover{ filter:brightness(1.04) }
+.btn-main:hover{ filter:brightness(1.05) }
 .btn-main:active{ transform: translateY(1px) }
 
 .btn-ghost{
   background:var(--surface-2);
-  border:1px solid rgba(255,255,255,.12);
+  border:1px solid rgba(255,255,255,.18);
   color:var(--brand-300); font-weight:800;
   border-radius:12px; padding:.6rem .9rem;
 }
@@ -221,14 +217,14 @@ label{ font-weight:700; color:var(--brand-900) }
   position:fixed; right:16px; bottom:16px; z-index:9999;
   background:var(--surface-3); color:var(--text-strong); padding:10px 14px; border-radius:12px;
   border:1px solid rgba(255,255,255,.12);
-  box-shadow:var(--shadow);
+  box-shadow:none;
   font-weight:800; display:none;
 }
 .toast-mini.show{ display:block; animation:fade .18s ease-out }
 @keyframes fade{ from{opacity:.2; transform:translateY(6px)} to{opacity:1; transform:translateY(0)} }
 
 /* a11y */
-:focus-visible{ outline:3px solid rgba(0,173,181,.45); outline-offset:3px; border-radius:10px }
+:focus-visible{ outline:3px solid rgba(58,163,255,.45); outline-offset:3px; border-radius:10px }
 
 /* tweak bootstrap wheel */
 .custom-select, .form-control { color-scheme: dark; }

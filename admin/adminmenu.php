@@ -1,9 +1,19 @@
 <?php
-// adminmenu.php — Admin UI + Show active promotions per menu (decorated UI)
+// adminmenu.php — Admin UI + Show active promotions per menu (front_store theme)
 declare(strict_types=1);
 include_once __DIR__ . '/../db.php';
 mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
 $conn->set_charset('utf8mb4');
+
+/* ---------- Detect current page for highlighting Add buttons ---------- */
+$currPath  = parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH) ?? '';
+$currFile  = basename($currPath);
+$isAddCat  = ($currFile === 'add_category.php');
+$isAddMenu = ($currFile === 'add_menu.php');
+// Allow forcing highlight on this page (adminmenu.php?active=addcat|addmenu)
+$force = $_GET['active'] ?? '';
+$isAddCat  = $isAddCat  || ($force === 'addcat');
+$isAddMenu = $isAddMenu || ($force === 'addmenu');
 
 /* ---------------- Utils ---------------- */
 function h($s){ return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
@@ -94,35 +104,16 @@ $total_found = ($result && $result instanceof mysqli_result) ? (int)$result->num
  href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
 
 <style>
-/* ================== Teal-Graphite Theme (เข้ม/อ่านง่าย) ================== */
+/* ====================== Base (ของเดิม) ====================== */
 :root{
-  --text-strong:#F4F7F8;
-  --text-normal:#E6EBEE;
-  --text-muted:#B9C2C9;
-
-  --bg-grad1:#222831;     /* background */
-  --bg-grad2:#393E46;
-
-  --surface:#1C2228;      /* cards */
-  --surface-2:#232A31;
-  --surface-3:#2B323A;
-
-  --ink:#F4F7F8;
-  --ink-muted:#CFEAED;
-
-  --brand-900:#EEEEEE;
-  --brand-700:#BFC6CC;
-  --brand-500:#00ADB5;    /* accent */
-  --brand-400:#27C8CF;
-  --brand-300:#73E2E6;
-
+  --text-strong:#F4F7F8; --text-normal:#E6EBEE; --text-muted:#B9C2C9;
+  --bg-grad1:#222831; --bg-grad2:#393E46;
+  --surface:#1C2228; --surface-2:#232A31; --surface-3:#2B323A;
+  --ink:#F4F7F8; --ink-muted:#CFEAED;
+  --brand-900:#EEEEEE; --brand-700:#BFC6CC; --brand-500:#00ADB5; --brand-400:#27C8CF; --brand-300:#73E2E6;
   --ok:#2ecc71; --danger:#e53935;
-
-  --shadow-lg:0 22px 66px rgba(0,0,0,.55);
-  --shadow:   0 14px 32px rgba(0,0,0,.42);
+  --shadow-lg:0 22px 66px rgba(0,0,0,.55); --shadow:0 14px 32px rgba(0,0,0,.42);
 }
-
-/* ===== Page ===== */
 html,body{height:100%}
 body{
   margin:0; font-family:"Segoe UI",Tahoma,Arial,sans-serif;
@@ -130,8 +121,6 @@ body{
   color:var(--ink);
 }
 .container-fluid.pos-shell{padding:14px; max-width:1600px}
-
-/* ===== Topbar ===== */
 .topbar{
   position:sticky; top:0; z-index:50;
   padding:12px 16px; border-radius:14px;
@@ -162,8 +151,6 @@ body{
   border:1px solid color-mix(in oklab, var(--brand-700), black 24%);
   border-radius:999px; padding:6px 10px; font-weight:800
 }
-
-/* ===== Category strip ===== */
 .pos-card{
   background:color-mix(in oklab, var(--surface), white 8%);
   border:1px solid color-mix(in oklab, var(--brand-700), black 22%);
@@ -182,10 +169,7 @@ body{
   background:linear-gradient(180deg,var(--brand-500),var(--brand-400));
   color:#062b33; border-color:#0d5a60; box-shadow:0 8px 18px rgba(0,0,0,.25)
 }
-
-/* ===== Grid & Cards ===== */
 .menu-grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(230px,1fr)); gap:16px; }
-
 .menu-card{
   position:relative; border-radius:16px; overflow:hidden; display:flex; flex-direction:column;
   background:
@@ -197,7 +181,6 @@ body{
 }
 .menu-card:hover{ transform:translateY(-3px); box-shadow:var(--shadow-lg); border-color:color-mix(in oklab, var(--brand-700), white 10%); }
 .menu-card img{ width:100%; height:160px; object-fit:cover; display:block; background:#1a2127 }
-
 .card-ribbon{
   position:absolute; top:10px; left:10px;
   background:color-mix(in oklab, var(--brand-500), black 20%);
@@ -208,184 +191,126 @@ body{
 .card-ribbon .dot{ width:8px; height:8px; border-radius:50%; background:#0bd477 }
 .menu-card.is-off .card-ribbon{ background:color-mix(in oklab, var(--danger), black 8%); color:#fff }
 .menu-card.is-off .card-ribbon .dot{ background:#ffd6d6 }
-
 .menu-card .meta{ padding:12px 14px 10px; }
-.menu-card h3{
-  margin:0 0 6px; font-size:1.02rem; color:var(--brand-300);
-  line-height:1.2; font-weight:900; text-shadow:0 0 1px rgba(0,0,0,.35);
-}
-
+.menu-card h3{ margin:0 0 6px; font-size:1.02rem; color:var(--brand-300); line-height:1.2; font-weight:900; text-shadow:0 0 1px rgba(0,0,0,.35); }
 .price-pill{
   display:inline-flex; align-items:center; gap:6px;
   background:color-mix(in oklab, var(--surface-3), white 6%);
   color:var(--brand-900); border:1px solid color-mix(in oklab, var(--brand-700), black 22%); border-radius:999px;
   padding:6px 10px; font-weight:900;
 }
-.price-pill i{opacity:.9}
-
 .info-line{ color:var(--text-muted); margin:8px 0 6px; display:flex; align-items:center; gap:6px }
-
 .badge-chip{
   display:inline-flex; align-items:center; gap:6px; margin-top:8px; margin-right:6px;
   background:color-mix(in oklab, var(--surface-2), white 6%); color:var(--brand-900);
   border:1px solid color-mix(in oklab, var(--brand-700), black 22%);
   border-radius:999px; padding:5px 10px; font-weight:800; font-size:.82rem;
 }
-/* สีแดงล้วนสำหรับ 'หยุดขายชั่วคราว' */
-.badge-chip.off{
-  background: var(--danger, #e53935); /* ถ้าไม่มี --danger ใช้ #e53935 */
-  color: #fff;                        /* ตัวอักษรสีขาวตัดชัด */
-  border-color: #c62828;              /* ขอบแดงเข้ม */
-}
-
-.badge-chip.off .bi{ opacity:.95 }
-
-.badge-chip.off:hover{
-  filter: brightness(1.05);
-}
-
-.badge-chip .bi{opacity:.9}
-/* เขียวล้วนสำหรับ 'พร้อมขาย' และ 'โปรเมนู' */
-.badge-chip.ok,
-.badge-chip.promo{
-  background: var(--ok, #2ecc71);   /* ถ้าไม่มี --ok จะใช้ #2ecc71 */
-  color: #0b2a17;                   /* เขียวเข้มอ่านง่ายบนพื้น */
-  border-color: #1fa85a;            /* เส้นขอบเขียวเข้ม */
-}
-
-/* ไอคอนชัดขึ้น และเอฟเฟกต์โฮเวอร์เล็กน้อย */
-.badge-chip.ok .bi,
-.badge-chip.promo .bi{ opacity:.95 }
-
-.badge-chip.ok:hover,
-.badge-chip.promo:hover{
-  filter: brightness(1.05);
-}
-
-/* Footer buttons */
+.badge-chip.off{ background: var(--danger, #e53935); color: #fff; border-color: #c62828; }
+.badge-chip.ok,.badge-chip.promo{ background: var(--ok, #2ecc71); color: #0b2a17; border-color: #1fa85a; }
 .card-actions{
   margin-top:auto; display:flex; gap:10px; padding:12px;
   background:color-mix(in oklab, var(--surface-3), white 6%);
   border-top:1px solid color-mix(in oklab, var(--brand-700), black 22%);
 }
-.btn{
-  flex:0 0 auto; cursor:pointer; border:1px solid transparent; border-radius:12px; padding:9px 12px;
-  font-weight:900; font-size:.92rem; box-shadow:0 6px 14px rgba(0,0,0,.25);
-  transition:transform .08s ease, filter .12s ease;
-}
+.btn{ flex:0 0 auto; cursor:pointer; border:1px solid transparent; border-radius:12px; padding:9px 12px;
+  font-weight:900; font-size:.92rem; box-shadow:0 6px 14px rgba(0,0,0,.25); transition:transform .08s ease, filter .12s ease; }
 .btn:active{ transform:translateY(1px); }
 .btn-edit{ background:linear-gradient(180deg,var(--brand-500),var(--brand-400)); color:#052a30; border:0; }
 .btn-edit:hover{ filter:brightness(1.05) }
 .btn-toggle-off{ background:linear-gradient(180deg,#2ecc71,#25b864); color:#052a18; border:0; }
 .btn-toggle-on{  background:linear-gradient(180deg,#ff6b6b,#e94444); color:#2a0202; border:0; }
-
-/* a11y & scroll */
 :focus-visible{outline:3px solid var(--brand-400); outline-offset:2px; border-radius:10px}
 *::-webkit-scrollbar{width:10px;height:10px}
 *::-webkit-scrollbar-thumb{background:#2e3a44;border-radius:10px}
 *::-webkit-scrollbar-thumb:hover{background:#3a4752}
 *::-webkit-scrollbar-track{background:#151a20}
-
 @media(max-width:576px){ .topbar{flex-wrap:wrap; gap:8px} }
-/* --- Normalize Topbar controls --- */
-.topbar-actions{
-  gap:10px;
-  flex-wrap:wrap;
-}
-
-/* ความสูงพื้นฐาน 36px สำหรับทุกชิ้น */
-:root{
-  --ctl-h:36px;
-}
-
-/* Search input-group ให้โค้งรับกันพอดี */
+.topbar-actions{ gap:10px; flex-wrap:wrap; }
+:root{ --ctl-h:36px; }
 .input-group.input-group-sm .input-group-text{
-  height:var(--ctl-h);
-  padding:0 10px;
-  border-radius:999px 0 0 999px !important;
-  background:var(--surface-2);
-  color:var(--brand-900);
-  border:1px solid color-mix(in oklab, var(--brand-700), black 24%);
-  line-height:1;  /* จัดไอคอนให้อยู่กลางแนวตั้ง */
+  height:var(--ctl-h); padding:0 10px; border-radius:999px 0 0 999px !important;
+  background:var(--surface-2); color:var(--brand-900);
+  border:1px solid color-mix(in oklab, var(--brand-700), black 24%); line-height:1;
 }
-
-.searchbox{
-  height:var(--ctl-h);
-  padding:0 14px;
-  border-radius:0 999px 999px 0 !important;
-  border-left:0 !important; /* ตะเข็บกลางไม่หนา */
+.searchbox{ height:var(--ctl-h); padding:0 14px; border-radius:0 999px 999px 0 !important; border-left:0 !important; }
+.topbar .btn,.btn-ghost.btn-sm,.btn-primary.btn-sm,.btn-outline-light.btn-sm{
+  height:var(--ctl-h); padding:0 14px; display:inline-flex; align-items:center; gap:6px; line-height:1; white-space:nowrap; border-radius:12px;
 }
-
-/* ปุ่มบน Topbar ให้สูงเท่าชุดค้นหา */
-.topbar .btn,
-.btn-ghost.btn-sm,
-.btn-primary.btn-sm,
-.btn-outline-light.btn-sm{
-  height:var(--ctl-h);
-  padding:0 14px;
-  display:inline-flex;
-  align-items:center;
-  gap:6px;
-  line-height:1;
-  white-space:nowrap;
-  border-radius:12px; /* โค้งพอๆ กับชิป */
-}
-
-/* ปุ่ม ghost สีหลัก */
-.btn-ghost{
-  background:linear-gradient(180deg,var(--brand-500),var(--brand-400));
-  border:0;
-  color:#062b33;
-  font-weight:800;
-}
-
-/* ปุ่ม primary (Dashboard) ให้ไม่สูงเกิน */
-.topbar .btn-primary{
-  height:var(--ctl-h);
-  padding:0 14px;
-  border-radius:12px;
-  font-weight:800;
-}
-
-/* ชิปตัวนับให้สูงเท่าชาวบ้าน */
-.counter-pill{
-  height:var(--ctl-h);
-  padding:0 12px;
-  align-items:center;
-  border-radius:999px;
-  display:inline-flex;
-  gap:6px;
-  line-height:1;
-}
-
-/* ความหนาเงา/ขอบให้เนียนเท่ากันทั้งหมด */
-.counter-pill,
-.badge-user,
-.input-group-text,
-.searchbox{
-  box-shadow:0 4px 10px rgba(0,0,0,.25);
-}
-
-/* ลบ margin ที่ทำให้ปุ่มกับช่องค้นหาดู “ลอย” */
+.btn-ghost{ background:linear-gradient(180deg,var(--brand-500),var(--brand-400)); border:0; color:#062b33; font-weight:800; }
+.topbar .btn-primary{ height:var(--ctl-h); padding:0 14px; border-radius:12px; font-weight:800; }
+.counter-pill{ height:var(--ctl-h); padding:0 12px; align-items:center; border-radius:999px; display:inline-flex; gap:6px; line-height:1; }
+.counter-pill,.badge-user,.input-group-text,.searchbox{ box-shadow:0 4px 10px rgba(0,0,0,.25); }
 .input-group.input-group-sm{ margin-right:8px; }
-/* ปุ่มออกจากระบบ — แดง */
 .btn-logout{
-  background:linear-gradient(180deg, #e53935, #c62828); /* ไล่แดง */
-  color:#fff !important;
-  font-weight:800;
-  border:1px solid #b71c1c;
-  border-radius:12px;
-  height:var(--ctl-h);
-  padding:0 14px;
-  display:inline-flex;
-  align-items:center;
-  gap:6px;
+  background:linear-gradient(180deg, #e53935, #c62828); color:#fff !important; font-weight:800;
+  border:1px solid #b71c1c; border-radius:12px; height:var(--ctl-h); padding:0 14px; display:inline-flex; align-items:center; gap:6px;
   box-shadow:0 4px 12px rgba(229,57,53,.35);
 }
-.btn-logout:hover{
-  filter:brightness(1.08);
+.btn-logout:hover{ filter:brightness(1.08); }
+
+/* ================== OVERRIDE ให้ตรงกับหน้า front_store ================== */
+:root{
+  /* โทนเข้มน้ำเงินหน้าร้าน */
+  --bg-grad1:#11161b; --bg-grad2:#141b22;
+  --surface:#1a2230;  --surface-2:#192231; --surface-3:#202a3a;
+  --ink:#e9eef6; --ink-muted:#b9c6d6; --text-strong:#ffffff;
+
+  /* ฟ้าแบรนด์เดียวกัน */
+  --brand-500:#3aa3ff; --brand-400:#7cbcfd; --brand-300:#a9cffd;
+
+  --shadow:none; --shadow-lg:none;
+}
+body,.table,.btn,input,label,.badge{ font-size:14.5px !important; }
+.topbar,.pos-card,.menu-card,.card-actions{
+  background: var(--surface) !important;
+  border: 1px solid rgba(255,255,255,.08) !important;
+  box-shadow: none !important;
+}
+.menu-card .meta,
+.card-actions{ background: var(--surface-2) !important; border-color: rgba(255,255,255,.10) !important; }
+.menu-card{ border-radius:12px !important; background: var(--surface) !important; }
+.menu-card img{ background:#10161f; }
+.menu-card h3{ color:#d6e6ff !important; text-shadow:none !important; }
+.price-pill{ background: var(--surface-3) !important; border:1px solid rgba(255,255,255,.12) !important; color:#eaf2ff !important; }
+.info-line{ color:#9db0c4 !important; }
+
+.chips a{ background: var(--surface-3) !important; border:1px solid rgba(255,255,255,.12) !important; color:#dce6f3 !important; }
+.chips a.active{
+  background: var(--brand-500) !important; color:#fff !important; border-color:#1e6acc !important; box-shadow:none !important;
 }
 
+.btn-ghost,
+.btn-edit,
+.topbar .btn-primary{
+  background: var(--brand-500) !important;
+  border: 1px solid #1e6acc !important;
+  color:#fff !important;
+  box-shadow:none !important;
+}
+.btn-ghost:hover,.btn-edit:hover,.topbar .btn-primary:hover{ filter:brightness(1.06); }
+
+.badge-user,
+.counter-pill,
+.badge-chip{
+  background: var(--surface-3) !important;
+  color: #eaf2ff !important;
+  border: 1px solid rgba(255,255,255,.12) !important;
+  box-shadow: none !important;
+}
+
+/* ชิปสถานะ/โปร ให้คุมโทนเดียวกัน */
+.badge-chip.ok{ background:#22c55e !important; color:#06240f !important; border-color:#15803d !important; }
+.badge-chip.off{ background:#e53935 !important; border-color:#c62828 !important; color:#fff !important; }
+.badge-chip.promo{ background:#22c55e !important; color:#06240f !important; border-color:#15803d !important; }
+
+.card-ribbon{
+  background: var(--brand-500) !important; color:#061a2a !important; box-shadow:none !important;
+}
+.menu-card.is-off .card-ribbon{ background:#e53935 !important; color:#fff !important; }
+
+.btn-toggle-off{ background: linear-gradient(180deg,#22c55e,#16a34a) !important; color:#052a18 !important; border:0 !important; }
+.btn-toggle-on{  background: linear-gradient(180deg,#ff6b6b,#e94444) !important; color:#2a0202 !important; border:0 !important; }
 </style>
 </head>
 <body>
@@ -399,7 +324,7 @@ body{
       <form class="form-inline" method="get" action="adminmenu.php" role="search" aria-label="ค้นหาเมนู">
         <div class="input-group input-group-sm mr-2">
           <div class="input-group-prepend">
-            <span class="input-group-text" style="border-radius:999px 0 0 999px;background:var(--surface-2);color:var(--brand-900);border:1px solid color-mix(in oklab, var(--brand-700), black 24%);">
+            <span class="input-group-text">
               <i class="bi bi-search"></i>
             </span>
           </div>
@@ -413,18 +338,24 @@ body{
     <div class="d-flex align-items-center topbar-actions">
       <span class="counter-pill"><i class="bi bi-list-ul"></i> พบ <?= (int)$total_found ?> รายการ</span>
       <a href="dashboard.php" class="btn btn-primary btn-sm"><i class="bi bi-graph-up"></i> Dashboard</a>
-      <a href="users_list.php" class="btn btn-ghost btn-sm"><i class="bi bi-people"></i> สมาชิกทั้งหมด</a>
-      
-  <!-- ✅ ปุ่ม Categories ที่เพิ่มใหม่ -->
-  <a href="categories.php" class="btn btn-ghost btn-sm">
-    <i class="bi bi-columns-gap"></i> Categories
-  </a>
-      <a href="promo_create.php" class="btn btn-ghost btn-sm"><i class="bi bi-stars"></i> สร้างโปรโมชัน</a>
-      <span class="badge badge-user px-3 py-2"><i class="bi bi-shield-lock"></i> ผู้ดูแลระบบ</span>
-      <a class="btn btn-sm btn-logout" href="../logout.php">
-  <i class="bi bi-box-arrow-right"></i> ออกจากระบบ
+      <a href="order.php" class="btn btn-ghost btn-sm">
+  <i class="bi bi-receipt"></i> ออเดอร์
 </a>
 
+      <a href="users_list.php" class="btn btn-ghost btn-sm"><i class="bi bi-people"></i> สมาชิกทั้งหมด</a>
+
+      <!-- ✅ ปุ่ม Categories -->
+      <a href="categories.php" class="btn btn-ghost btn-sm">
+        <i class="bi bi-columns-gap"></i> หมวดหมู่
+      </a>
+
+      <a href="promo_create.php" class="btn btn-ghost btn-sm"><i class="bi bi-stars"></i> สร้างโปรโมชัน</a>
+      <a href="recipes.php" class="btn btn-ghost btn-sm"><i class="bi bi-journal-text"></i> สูตรเมนู</a>
+
+      <span class="badge badge-user px-3 py-2"><i class="bi bi-shield-lock"></i> ผู้ดูแลระบบ</span>
+      <a class="btn btn-sm btn-logout" href="../logout.php">
+        <i class="bi bi-box-arrow-right"></i> ออกจากระบบ
+      </a>
     </div>
   </div>
 
@@ -445,8 +376,14 @@ body{
       <?php endwhile; ?>
 
       <div class="ml-auto d-flex align-items-center" style="gap:8px;">
-        <a class="btn btn-sm btn-ghost" href="add_category.php"><i class="bi bi-plus-circle"></i> เพิ่มหมวดหมู่</a>
-        <a class="btn btn-sm btn-ghost" href="add_menu.php"><i class="bi bi-plus-square"></i> เพิ่มเมนู</a>
+        <a class="btn btn-sm <?= $isAddCat ? 'btn-primary' : 'btn-ghost' ?>"
+           href="add_category.php" <?= $isAddCat ? 'aria-current="page"' : '' ?>>
+          <i class="bi bi-plus-circle"></i> เพิ่มหมวดหมู่
+        </a>
+        <a class="btn btn-sm <?= $isAddMenu ? 'btn-primary' : 'btn-ghost' ?>"
+           href="add_menu.php" <?= $isAddMenu ? 'aria-current="page"' : '' ?>>
+          <i class="bi bi-plus-square"></i> เพิ่มเมนู
+        </a>
       </div>
     </div>
   </div>
@@ -462,7 +399,7 @@ body{
      ];
      $text = $map[$_GET['msg']] ?? '';
      if ($text): ?>
-      <div class="alert mb-3" style="background:color-mix(in oklab, var(--brand-500), black 80%); color:#dffcff; border:1px solid color-mix(in oklab, var(--brand-500), black 40%); border-radius:12px">
+      <div class="alert mb-3" style="background:rgba(58,163,255,.16); color:#dff6ff; border:1px solid rgba(58,163,255,.35); border-radius:12px">
         <i class="bi bi-check2-circle"></i> <?= h($text) ?>
       </div>
   <?php endif; endif; ?>
@@ -498,25 +435,20 @@ body{
           <div class="info-line"><i class="bi bi-folder2-open"></i> หมวดหมู่: <?= h($row['category_name'] ?? '-') ?></div>
 
           <div class="d-flex flex-wrap">
-            <!-- สถานะเปิดขาย -->
             <div class="badge-chip <?= $isActive ? 'ok' : 'off' ?>">
-
               <i class="bi <?= $isActive ? 'bi-check-circle' : 'bi-pause-circle' ?>"></i>
               <?= $isActive ? 'พร้อมขาย' : 'หยุดขายชั่วคราว' ?>
             </div>
 
-            <!-- โปรโมชัน ITEM สำหรับเมนูนี้ -->
             <?php if (!empty($thisItemPromos)): ?>
               <?php foreach ($thisItemPromos as $p): ?>
                 <div class="badge-chip promo" title="โปรเฉพาะเมนู">
-
                   <i class="bi bi-stars"></i>
                   โปรเมนู: <?= h($p['name']) ?> • <?= h(promo_text($p)) ?>
                 </div>
               <?php endforeach; ?>
             <?php endif; ?>
 
-            <!-- โปรโมชัน ORDER (ทั้งบิล) -->
             <?php if (!empty($orderPromos)): ?>
               <?php foreach ($orderPromos as $op): ?>
                 <div class="badge-chip" title="โปรทั้งบิล">
@@ -560,7 +492,7 @@ body{
 
 </div>
 
-<!-- UX เล็กน้อย: กด / เพื่อโฟกัสช่องค้นหา -->
+<!-- UX: กด / เพื่อโฟกัสช่องค้นหา -->
 <script>
 document.addEventListener('keydown', (e)=>{
   if(e.key === '/'){

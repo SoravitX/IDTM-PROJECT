@@ -6,7 +6,6 @@ mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
 $conn->set_charset('utf8mb4');
 
 $error = '';
-$done  = false;
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $username = trim($_POST['username'] ?? '');
@@ -50,65 +49,120 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   <meta charset="UTF-8" />
   <title>ตั้งรหัสผ่านใหม่ • PSU Blue Cafe</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <!-- Bootstrap CSS -->
   <link rel="stylesheet"
         href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css"/>
+  <!-- Bootstrap Icons -->
+  <link rel="stylesheet"
+        href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
+  <!-- Kanit font -->
   <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@400;600;700&display=swap" rel="stylesheet">
+
   <style>
   :root{
-    --text-strong:#F4F7F8; --text-normal:#E6EBEE; --text-muted:#B9C2C9;
-    --bg-grad1:#222831; --bg-grad2:#393E46;
-    --surface:#1C2228; --surface-2:#232A31; --surface-3:#2B323A;
-    --ink:#F4F7F8; --ink-muted:#CFEAED;
-    --brand-900:#EEEEEE; --brand-700:#BFC6CC; --brand-500:#00ADB5; --brand-400:#27C8CF; --brand-300:#73E2E6;
-    --danger:#e53935; --ring:#73E2E6; --shadow-lg:0 22px 66px rgba(0,0,0,.55); --shadow:0 14px 32px rgba(0,0,0,.42); --radius:18px;
+    /* ===== โทนมินิมอลเข้มน้ำเงิน (match หน้า login) ===== */
+    --bg-grad1:#11161b; --bg-grad2:#141b22;
+    --surface:#1a2230;  --surface-2:#192231; --surface-3:#202a3a;
+    --ink:#e9eef6; --ink-muted:#b9c6d6; --text-strong:#ffffff;
+
+    --brand-500:#3aa3ff; --brand-400:#7cbcfd; --brand-300:#a9cffd;
+
+    --danger:#e53935;
+    --radius:16px;
   }
+
   html, body { height:100% }
   body{
     margin:0; font-family: 'Kanit', system-ui, -apple-system, "Segoe UI", Tahoma, Arial, sans-serif; color:var(--ink);
     background:
-      radial-gradient(1000px 480px at 15% 10%, rgba(39,200,207,.18), transparent 60%),
-      radial-gradient(900px 520px at 85% 35%, rgba(115,226,230,.10), transparent 55%),
+      radial-gradient(900px 420px at 85% 30%, rgba(58,163,255,.08), transparent 60%),
+      radial-gradient(1000px 520px at 10% 10%, rgba(121,188,253,.10), transparent 60%),
       linear-gradient(135deg, var(--bg-grad1), var(--bg-grad2));
     display:flex; align-items:center; justify-content:center; padding:18px;
   }
+
   .wrap{ width:100%; max-width:500px; }
-  .cardx{ background: color-mix(in oklab, var(--surface), white 6%); border:1px solid color-mix(in oklab, var(--brand-700), black 22%); color:var(--ink); border-radius:var(--radius); box-shadow:var(--shadow-lg); overflow:hidden; }
+  .cardx{
+    background: var(--surface);
+    border:1px solid rgba(255,255,255,.08);
+    color:var(--ink);
+    border-radius:var(--radius);
+    box-shadow:none;
+    overflow:hidden;
+  }
   .cardx-header{
     padding:18px 22px;
-    background:
-      radial-gradient(180px 60px at 95% -10%, rgba(115,226,230,.25), transparent 70%),
-      linear-gradient(180deg, color-mix(in oklab, var(--surface-2), white 8%), var(--surface-3));
-    border-bottom:1px solid color-mix(in oklab, var(--brand-700), black 22%); text-align:center;
+    background: var(--surface-2);
+    border-bottom:1px solid rgba(255,255,255,.10);
+    text-align:center;
   }
-  .brand{ font-weight:900; letter-spacing:.3px; margin:0; color:var(--brand-300); text-shadow:0 1px 0 rgba(0,0,0,.3); }
+  .brand{ font-weight:900; letter-spacing:.3px; margin:0; color:var(--brand-300); }
   .cardx-body{ padding:22px; }
 
-  label{ font-weight:700; color:var(--text-normal); }
+  label{ font-weight:700; color:var(--text-strong); }
+  .hint{ color:var(--ink-muted); font-size:.92rem; }
+
   .form-control{
-    border:2px solid color-mix(in oklab, var(--brand-700), white 30%); border-radius:12px; background:var(--brand-900);
-    color:#0b1d2b; font-weight:600; padding:.6rem .9rem;
+    border:1px solid rgba(255,255,255,.12);
+    border-radius:12px;
+    background:var(--surface-3);
+    color:var(--ink);
+    font-weight:600;
+    padding:.6rem .9rem;
   }
-  .form-control:focus{ border-color:var(--brand-400); box-shadow:0 0 0 .2rem color-mix(in oklab, var(--ring), white 35%); }
-  .input-group-text{
-    background:var(--surface-2); border:2px solid color-mix(in oklab, var(--brand-700), white 30%); border-left:0; color:var(--brand-300); cursor:pointer;
-    border-top-right-radius:12px !important; border-bottom-right-radius:12px !important;
+  .form-control:focus{
+    border-color:#1e6acc;
+    box-shadow:0 0 0 .2rem rgba(58,163,255,.25);
+    background:var(--surface-3);
+    color:var(--ink);
   }
-  .input-group .form-control{ border-right:0; border-top-right-radius:0; border-bottom-right-radius:0; }
+
+  /* ปุ่มตาแสดง/ซ่อนรหัสผ่าน */
+  .input-group-append .btn-eye{
+    border:1px solid rgba(255,255,255,.12);
+    border-left:0;
+    background:var(--surface-3);
+    color:#cfe2ff;
+    border-top-right-radius:12px;
+    border-bottom-right-radius:12px;
+  }
+  .input-group .form-control{
+    border-top-right-radius:0;
+    border-bottom-right-radius:0;
+    border-right:0;
+  }
+  .btn-eye:focus{
+    outline:none;
+    box-shadow:0 0 0 .2rem rgba(58,163,255,.25);
+  }
 
   .btn-primary{
-    background: linear-gradient(180deg, var(--brand-500), var(--brand-400));
-    border:1px solid color-mix(in oklab, var(--brand-500), black 25%); color:#062b33; font-weight:900; border-radius:12px; letter-spacing:.2px;
-    box-shadow:0 10px 22px rgba(0,0,0,.25);
+    background: var(--brand-500);
+    border:1px solid #1e6acc;
+    color:#fff;
+    font-weight:900;
+    border-radius:12px;
+    letter-spacing:.2px;
   }
-  .btn-primary:hover{ filter:brightness(1.05) }
+  .btn-primary:hover{ filter:brightness(1.06) }
+
   .btn-secondary{
-    background: linear-gradient(180deg, #9aa4ad, #7e8891);
-    border:1px solid #56616a; color:#0e1419; font-weight:900; border-radius:12px; box-shadow:0 10px 22px rgba(0,0,0,.25);
+    background:#2b3442;
+    border:1px solid rgba(255,255,255,.14);
+    color:#e9eef6;
+    font-weight:900;
+    border-radius:12px;
   }
+  .btn-secondary:hover{ filter:brightness(1.06) }
 
   .alert{ border-radius:12px; border:1px solid transparent; }
-  .alert-danger{ background: color-mix(in oklab, var(--danger), black 10%); color:#fff; }
-  .hint{ color:var(--text-muted); font-size:.92rem; }
+  .alert-danger{ background:#b3261e; color:#fff; border-color:#8b1d17; }
+
+  :focus-visible{ outline:3px solid var(--brand-400); outline-offset:2px; border-radius:10px }
+  *::-webkit-scrollbar{width:10px;height:10px}
+  *::-webkit-scrollbar-thumb{background:#2e3a44;border-radius:10px}
+  *::-webkit-scrollbar-thumb:hover{background:#3a4752}
+  *::-webkit-scrollbar-track{background:#151a20}
   </style>
 </head>
 <body>
@@ -133,7 +187,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <div class="input-group">
               <input id="password" type="password" name="password" class="form-control" minlength="4" required />
               <div class="input-group-append">
-                <span class="input-group-text" id="togglePass1" title="แสดง/ซ่อนรหัสผ่าน">👁️</span>
+                <button class="btn btn-eye" type="button" id="togglePass1" aria-label="แสดงรหัสผ่าน">
+                  <i class="bi bi-eye"></i>
+                </button>
               </div>
             </div>
           </div>
@@ -143,7 +199,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <div class="input-group">
               <input id="password2" type="password" name="password2" class="form-control" minlength="4" required />
               <div class="input-group-append">
-                <span class="input-group-text" id="togglePass2" title="แสดง/ซ่อนรหัสผ่าน">👁️</span>
+                <button class="btn btn-eye" type="button" id="togglePass2" aria-label="แสดงรหัสผ่าน">
+                  <i class="bi bi-eye"></i>
+                </button>
               </div>
             </div>
             <small class="hint">เพื่อความปลอดภัย รหัสผ่านจะถูกบันทึกแบบเข้ารหัส (bcrypt)</small>
@@ -158,19 +216,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
   <script>
     function hookToggle(idInput, idBtn){
-      const i = document.getElementById(idInput);
-      const b = document.getElementById(idBtn);
-      b?.addEventListener('click', ()=>{
-        if(!i) return;
-        const isPwd = i.getAttribute('type') === 'password';
-        i.setAttribute('type', isPwd ? 'text' : 'password');
-        b.textContent = isPwd ? '🙈' : '👁️';
+      const input = document.getElementById(idInput);
+      const btn   = document.getElementById(idBtn);
+      btn?.addEventListener('click', ()=>{
+        if(!input) return;
+        const isPwd = input.getAttribute('type') === 'password';
+        input.setAttribute('type', isPwd ? 'text' : 'password');
+
+        const icon = btn.querySelector('i');
+        if (icon){
+          icon.classList.toggle('bi-eye', !isPwd);       // ซ่อน → แสดง
+          icon.classList.toggle('bi-eye-slash', isPwd);  // แสดง → ซ่อน
+        }
+        btn.setAttribute('aria-label', isPwd ? 'ซ่อนรหัสผ่าน' : 'แสดงรหัสผ่าน');
       });
     }
     hookToggle('password','togglePass1');
     hookToggle('password2','togglePass2');
 
-    // Enter = submit
+    // Enter ที่ช่องยืนยัน → submit
     document.getElementById('password2')?.addEventListener('keydown', e=>{
       if(e.key === 'Enter'){ e.preventDefault(); e.target.closest('form')?.submit(); }
     });

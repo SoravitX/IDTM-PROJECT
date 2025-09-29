@@ -180,20 +180,22 @@ function render_cart_box(): string {
                   <?php if ($topping_unit > 0): ?>
                     <div class="mt-1">
                       <span class="note-pill" title="คิดจาก (ราคาเต็มก่อนหักโปร) - (ราคาเมนูฐาน)">
-                        <i class="bi bi-egg-fried"></i>
-                        ท็อปปิง: +<?= number_format($topping_unit,2) ?> ฿/หน่วย
-                        
-                      </span>
+  <span class="k">ท็อปปิง:</span>
+  <span class="v">+<?= number_format($topping_unit,2) ?> ฿/หน่วย</span>
+</span>
+
                     </div>
                   <?php endif; ?>
 
                   <?php if ($promo_name !== '' && $unit_discount > 0): ?>
                     <div class="mt-1">
-                      <span class="note-pill" title="ส่วนลดโปรโมชันถูกหักแล้วในราคาต่อหน่วย">
-                        <i class="bi bi-tags-fill"></i>
-                        โปรฯ: <?= htmlspecialchars($promo_name,ENT_QUOTES,'UTF-8') ?>
-                        — ลด <?= number_format($unit_discount,2) ?> ฿/หน่วย
-                      </span>
+                     <span class="note-pill" title="ส่วนลดโปรโมชันถูกหักแล้วในราคาต่อหน่วย">
+  <span class="k">โปรฯ:</span>
+  <span class="v">
+    <?= htmlspecialchars($promo_name,ENT_QUOTES,'UTF-8') ?> — ลด <?= number_format($unit_discount,2) ?> ฿/หน่วย
+  </span>
+</span>
+
                     </div>
                   <?php endif; ?>
                 </td>
@@ -1441,6 +1443,258 @@ body{
 #slipModal .psu-radio input:not(:checked) + span{
   border: 1.5px solid rgba(255,255,255,.28);
 }
+/* ===========================
+   Minimal • Clean • Readable
+   วางไว้ท้ายไฟล์เพื่อ override
+   =========================== */
+
+/* โทนสีเรียบ */
+:root{
+  --bg-grad1:#11161b;
+  --bg-grad2:#141b22;
+  --surface:#1a2230;
+  --surface-2:#192231;
+  --surface-3:#202a3a;
+
+  --ink:#e9eef6;           /* ตัวอักษรหลัก */
+  --ink-muted:#b9c6d6;
+  --text-strong:#ffffff;
+
+  --brand-500:#3aa3ff;     /* ฟ้าเรียบ */
+  --brand-400:#7cbcfd;
+  --brand-300:#a9cffd;
+
+  --radius:10px;           /* มุมโค้งพอดีๆ */
+  --shadow:   0 6px 16px rgba(0,0,0,.25);
+  --shadow-lg:0 10px 24px rgba(0,0,0,.3);
+}
+
+/* พื้นหลังหน้า = แบน เรียบ */
+body{
+  background: linear-gradient(180deg,var(--bg-grad1),var(--bg-grad2));
+  color: var(--ink);
+  letter-spacing:.1px;
+}
+
+/* ตัดเงาหนัก / เกลี่ยขอบให้บางลง */
+.pos-card,
+.product-mini,
+.topbar,
+.psu-modal__dialog{
+  background: var(--surface);
+  border: 1px solid rgba(255,255,255,.06);
+  border-radius: var(--radius);
+  box-shadow: none;          /* เอาเงาออกให้ดูสะอาด */
+}
+
+/* Topbar เรียบ + ระยะหายใจ */
+.topbar{
+  background: var(--surface-2);
+  border: 1px solid rgba(255,255,255,.08);
+  padding: 10px 14px;
+  box-shadow: none;
+}
+.brand{ color:#fff; font-weight:800 }
+
+/* Search box แบน */
+.search-wrap .searchbox{
+  background: var(--surface-3);
+  border: 1px solid rgba(255,255,255,.10);
+  border-radius: 12px;
+  padding:.44rem 0.9rem .44rem 36px;
+}
+.searchbox:focus{ box-shadow: 0 0 0 3px rgba(58,163,255,.18) }
+
+/* ปุ่มหลัก = สีเดียว แบน */
+.btn-ghost,
+.btn-primary,
+#btnUpload,
+#btnCashConfirm{
+  background: var(--brand-500) !important;
+  border: 1px solid #1e6acc !important;
+  color:#fff !important;
+  font-weight:800;
+  box-shadow:none !important;
+  text-shadow:none !important;
+}
+.btn-ghost:hover,
+.btn-primary:hover,
+#btnUpload:hover,
+#btnCashConfirm:hover{ filter:brightness(1.06) }
+
+/* ปุ่มรอง (ขอบบาง) */
+.btn-outline-light,
+#btnSlipCancel,
+#btnSlipCancel2{
+  background: transparent !important;
+  color: var(--ink) !important;
+  border: 1px solid rgba(255,255,255,.18) !important;
+}
+
+/* หมวดหมู่ (chips) แบน + ชัด */
+.chips a{
+  background: var(--surface-3);
+  border: 1px solid rgba(255,255,255,.10);
+  color: var(--ink);
+  padding: 8px 12px;
+  border-radius: 12px;
+  box-shadow:none;
+}
+.chips a.active{
+  background: var(--brand-500);
+  color:#08121f;
+  border-color:#1e6acc;
+  box-shadow:none;
+}
+
+/* การ์ดสินค้าเรียบ */
+.product-mini{
+  border-radius: 10px;
+}
+.product-mini .thumb{
+  height: 120px;
+  background: var(--surface-2);
+}
+.product-mini .pname{
+  font-size: .98rem;
+  line-height: 1.25;
+  color:#fff;
+}
+.product-mini .pprice{
+  color:#fff;
+  font-weight:900;
+}
+/* ป้ายโปรเล็ก อ่านง่าย */
+.product-mini .ribbon{
+  top:12px; left:12px;
+  border-radius: 6px;
+  padding: 4px 8px;
+  background: #18b37e;
+  box-shadow:none;
+}
+
+/* ปุ่ม “เลือก” = แคปซูลเรียบ */
+.product-mini .quick{
+  background: var(--brand-500);
+  border: 1px solid #1e6acc;
+  color:#fff;
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-weight:800;
+  box-shadow:none;
+}
+
+/* ตารางตะกร้า = เส้นบาง สีจาง */
+.table-cart{
+  background: var(--surface);
+  color: var(--ink);
+  border: 0;
+}
+.table-cart thead th{
+  background: var(--surface-2);
+  border-bottom: 1px solid rgba(255,255,255,.10) !important;
+}
+.table-cart td, .table-cart th{
+  border-color: rgba(255,255,255,.08) !important;
+}
+.table-cart tbody tr:hover td{
+  background: var(--surface-2);
+}
+
+/* pill หมายเหตุ/ท็อปปิง */
+.note-pill{
+  background: var(--surface-3);
+  border: 1px solid rgba(255,255,255,.10);
+  color: var(--ink);
+  border-radius: 10px;
+}
+.note-pill .k{ color: var(--brand-300) }
+.note-pill .v{ color: #fff }
+
+/* สรุปยอด = แบ็กกราวด์เข้ม + ตัวเลขเด่น */
+.summary-card{
+  background: var(--surface-2);
+  border: 0;
+}
+.summary-card .h5,
+.summary-card .amount,
+.summary-card .net{ color:#fff !important; }
+.summary-row .tag{ color:var(--ink-muted) }
+
+/* ตัวเลือกวิธีชำระแบบแคปซูลเรียบ */
+.psu-radio{
+  background: var(--surface-3);
+  border: 1px solid rgba(255,255,255,.12);
+  box-shadow:none;
+}
+.psu-radio input:checked + span{
+  background: var(--brand-500);
+  color:#071627;
+  border: 1px solid #1e6acc;
+  box-shadow:none;
+}
+
+/* โมดัลเรียบ */
+.psu-modal__backdrop{ background: rgba(0,0,0,.55) }
+.psu-modal__dialog{ border: 1px solid rgba(255,255,255,.08) }
+
+/* เลิกใช้ drop-shadow หนัก ๆ บนไอคอน/ป้าย */
+.badge, .ribbon, .quick, .chips a{ text-shadow:none !important; box-shadow:none !important; }
+
+/* ขนาดตัวอักษรเล็กน้อยให้เสมอ ๆ */
+body, .table, .btn, input, label, .badge{ font-size: 14.5px; }
+/* เปลี่ยนสีพื้นหลังป้ายผู้ใช้ */
+.badge-user{
+  background: linear-gradient(180deg, #1fd1d6, #0aa9ae); /* เทียลไล่เฉดนุ่มๆ */
+  color: #062b33;                  /* ตัวอักษรเข้ม อ่านชัดบนพื้นสว่าง */
+  border: 1.5px solid #0d8f94;     /* เส้นขอบให้คมขึ้น */
+  border-radius: 999px;
+  font-weight: 800;
+}
+
+/* ถ้าอยากเรียบไม่ไล่เฉด ใช้แบบแบน */
+.badge-user{ /* เลือกใช้แทนบล็อกบนได้ */
+  background: #2ea7ff;             /* ฟ้านุ่ม */
+  color: #082238;
+  border: 1px solid #1669c9;
+}
+/* ===== Cart pills: ลบไอคอน + ปรับสีให้เหมือน "น้ำแข็ง" ===== */
+/* ซ่อนไอคอนเฉพาะบรรทัดท็อปปิง/โปรโมชัน */
+.note-pill > i.bi-egg-fried,
+.note-pill > i.bi-tags-fill{
+  display: none !important;
+}
+
+/* ให้ข้อความในสองบรรทัดนี้เป็นสีเดียวกับค่า (เช่น "น้ำแข็ง: ...") */
+.note-pill:has(> i.bi-egg-fried),
+.note-pill:has(> i.bi-tags-fill){
+  color: var(--text-strong) !important;   /* ขาว/สว่างเหมือน .note-pill .v */
+  font-weight: 800;
+}
+
+/* ===== สรุปยอด: "โปรนี้ช่วยประหยัด" เป็นสีเขียว ===== */
+/* แถวที่ 2 ของ summary-card คือบรรทัด "โปรนี้ช่วยประหยัด" */
+.summary-card .summary-row + .summary-row .tag,
+.summary-card .summary-row + .summary-row .font-weight-bold{
+  color: #22c55e !important;             /* emerald green */
+}
+
+/* (ถ้าอยากให้ตัวเลขขึ้นสีเขียวด้วยแต่คงเครื่องหมายลบไว้) */
+.summary-card .summary-row + .summary-row .font-weight-bold {
+  font-weight: 900;
+}
+/* ซ่อนไอคอนสองรายการ (คง DOM ไว้เพื่อเลือกด้วย :has) */
+.note-pill > i.bi-egg-fried,
+.note-pill > i.bi-tags-fill{
+  display:none !important;
+}
+
+/* ให้ทั้งบรรทัดท็อปปิง/โปรฯ เป็นสีเดียวกับ "น้ำแข็ง" (var(--text-strong)) */
+.note-pill:has(> i.bi-egg-fried),
+.note-pill:has(> i.bi-tags-fill){
+  color: var(--text-strong) !important;  /* เหมือน .note-pill .v */
+  font-weight: 800;
+}
 
 </style>
 </head>
@@ -1469,7 +1723,7 @@ body{
         <i class="bi bi-bell"></i> เสียงแจ้งเตือน
       </label>
 
-      <a href="checkout.php" class="btn btn-primary btn-sm mr-2" style="font-weight:800"><i class="bi bi-receipt"></i> Order</a>
+      <a href="order.php" class="btn btn-primary btn-sm mr-2" style="font-weight:800"><i class="bi bi-receipt"></i> ออเดอร์</a>
       <a href="../SelectRole/role.php" class="btn btn-primary btn-sm mr-2" style="font-weight:800"><i class="bi bi-person-badge"></i> บทบาท</a>
       <a href="user_profile.php" class="btn btn-primary btn-sm mr-2" style="font-weight:800"><i class="bi bi-person-circle"></i> ข้อมูลส่วนตัว</a>
       <span class="badge badge-user px-3 py-2 mr-2"><i class="bi bi-person"></i> ผู้ใช้: <?= htmlspecialchars($_SESSION['username'] ?? '', ENT_QUOTES,'UTF-8') ?></span>
@@ -1487,20 +1741,23 @@ body{
     <div class="alert alert-ok pos-card p-3 mb-3">
       <i class="bi bi-check2-circle"></i>
       <?= htmlspecialchars($success_msg, ENT_QUOTES, 'UTF-8') ?>
-      &nbsp;&nbsp;<a class="btn btn-light btn-sm" href="checkout.php"><i class="bi bi-arrow-up-right-square"></i> ไปหน้า Order</a>
+      &nbsp;&nbsp;<a class="btn btn-light btn-sm" href="order.php"><i class="bi bi-arrow-up-right-square"></i> ไปหน้า Order</a>
     </div>
   <?php endif; ?>
-
-  <?php if (!empty($new_order_id)): ?>
+<?php if (!empty($new_order_id)): ?>
   <script>
-    window.addEventListener('load', () => {
-      const oid  = <?= (int)$new_order_id ?>;
-      const amt  = "<?= isset($new_total)? number_format((float)$new_total,2): '0.00' ?>";
-      if (typeof openSlipModal === 'function') openSlipModal(oid, amt);
-      else setTimeout(() => { try { openSlipModal(oid, amt); } catch (_) {} }, 300);
+    document.addEventListener('DOMContentLoaded', () => {
+      const oid = <?= (int)$new_order_id ?>;
+      const amt = "<?= number_format((float)$new_total, 2) ?>";
+      if (typeof openSlipModal === 'function') {
+        openSlipModal(oid, amt);
+      } else {
+        setTimeout(() => { try { openSlipModal(oid, amt); } catch(_) {} }, 0);
+      }
     });
   </script>
-  <?php endif; ?>
+<?php endif; ?>
+
 
   <!-- CHIPS -->
   <div class="pos-card p-3 mb-3">

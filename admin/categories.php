@@ -27,7 +27,6 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
     $name = trim((string)($_POST['category_name'] ?? ''));
     if ($name==='') { $msg='กรุณากรอกชื่อหมวดหมู่'; $cls='danger'; }
     else {
-      // next position = max+1
       $next = (int)($conn->query("SELECT COALESCE(MAX(position),0)+1 AS n FROM categories")->fetch_assoc()['n'] ?? 1);
       $stmt = $conn->prepare("INSERT INTO categories (category_name, position, is_active) VALUES (?, ?, 1)");
       $stmt->bind_param('si', $name, $next);
@@ -74,7 +73,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
     }
   }
 
-  // 5) Sort (AJAX) — order[]=id1&order[]=id2...
+  // 5) Sort (AJAX)
   if ($action==='sort') {
     $order = $_POST['order'] ?? [];
     if (is_string($order)) { $order = @json_decode($order,true) ?: []; }
@@ -108,65 +107,160 @@ $cats = $conn->query("
   href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
 <link rel="stylesheet"
   href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
-<!-- SortableJS for drag & drop -->
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
 <style>
+/* ====== FRONT_STORE THEME (น้ำเงินหลัก #3aa3ff) ====== */
 :root{
-  --text-strong:#F4F7F8; --text-normal:#E6EBEE; --text-muted:#B9C2C9;
-  --bg-grad1:#222831; --bg-grad2:#393E46;
-  --surface:#1C2228; --surface-2:#232A31; --surface-3:#2B323A;
-  --ink:#F4F7F8; --ink-muted:#CFEAED;
-  --brand-900:#EEEEEE; --brand-700:#BFC6CC; --brand-500:#00ADB5; --brand-400:#27C8CF; --brand-300:#73E2E6;
-  --ok:#2ecc71; --danger:#e53935;
-  --shadow:0 14px 32px rgba(0,0,0,.42);
+  --bg1:#11161b; --bg2:#141b22;
+
+  --surface:#1a2230; --surface-2:#192231; --surface-3:#202a3a;
+
+  --text-strong:#ffffff; --text-normal:#e9eef6; --text-muted:#b9c6d6;
+
+  --brand-500:#3aa3ff;   /* ฟ้าหลัก */
+  --brand-400:#7cbcfd;
+  --brand-300:#a9cffd;
+
+  --ok:#22c55e; --danger:#e53935;
+
+  --radius:10px;
 }
+
 body{
-  background:
-    radial-gradient(900px 360px at 110% -10%, rgba(39,200,207,.14), transparent 60%),
-    linear-gradient(135deg,var(--bg-grad1),var(--bg-grad2));
-  color:var(--text-strong); font-family:"Segoe UI",Tahoma,Arial;
+  background: linear-gradient(180deg,var(--bg1),var(--bg2));
+  color:var(--text-normal);
+  font-family:"Segoe UI",Tahoma,Arial,sans-serif;
 }
 .wrap{max-width:980px;margin:24px auto;padding:0 12px}
-.h4,.h5{color:var(--brand-900)}
+.h4,.h5{color:var(--text-strong)}
 
-/* Card */
-.cardx{ background:linear-gradient(180deg,var(--surface),var(--surface-2));
-  color:var(--ink); border:1px solid rgba(255,255,255,.08); border-radius:16px; box-shadow:var(--shadow) }
-.card-head{ padding:10px 14px; border-bottom:1px solid rgba(255,255,255,.08); color:var(--brand-700); font-weight:800 }
-
-/* Inputs */
-label{ color:var(--brand-700); font-weight:700 }
-.form-control{ background:var(--surface-3); color:var(--text-strong); border:1.5px solid rgba(255,255,255,.10); border-radius:12px }
-.form-control::placeholder{ color:#9aa3ab }
-.form-control:focus{ border-color:var(--brand-500); box-shadow:0 0 0 .2rem rgba(0,173,181,.25); background:#2F373F }
-
-/* Chip & buttons */
-.badge-chip{background:linear-gradient(180deg,rgba(255,255,255,.08),rgba(255,255,255,.04));
-  color:var(--brand-900); border:1px solid rgba(255,255,255,.12); border-radius:999px; padding:.25rem .6rem; font-weight:800}
-.btn-main{ background:linear-gradient(180deg,var(--brand-500),#07949B); border:0; color:#061217; font-weight:900; border-radius:12px }
-.btn-outline-light{ font-weight:800; border-radius:12px; border-color:rgba(255,255,255,.25); color:var(--text-normal) }
-.btn-outline-light:hover{ background:rgba(255,255,255,.06) }
-
-/* List */
-.list-group-item{
-  background:var(--surface-3); color:var(--text-normal);
-  border:1px solid rgba(255,255,255,.08); display:flex; align-items:center; justify-content:space-between;
+/* ====== Header actions ====== */
+.btn-primary,
+.btn-main{
+  background: var(--brand-500) !important;
+  border: 1px solid #1e6acc !important;
+  color:#fff !important;
+  font-weight:900;
+  border-radius: var(--radius);
+  box-shadow:none;
 }
-.list-group-item .title{ color:var(--brand-300); font-weight:800 }
-.drag-handle{ cursor:grab; opacity:.85 }
+.btn-outline-light{
+  background: transparent;
+  color: var(--text-strong);
+  border: 1px solid rgba(255,255,255,.18);
+  font-weight:800;
+  border-radius: var(--radius);
+}
+.btn-outline-light:hover{ background: var(--surface-3); }
+.btn-outline-danger{
+  color:#ffb4b0; border:1px solid rgba(255,0,0,.25); background:transparent; font-weight:800; border-radius:var(--radius);
+}
+.btn-outline-danger:disabled{ opacity:.55; cursor:not-allowed }
+
+/* ====== Cards ====== */
+.cardx{
+  background: var(--surface);
+  color: var(--text-normal);
+  border:1px solid rgba(255,255,255,.08);
+  border-radius:16px;
+  box-shadow:none;
+}
+.card-head{
+  padding:10px 14px;
+  border-bottom:1px solid rgba(255,255,255,.10);
+  background: var(--surface-2);
+  color: var(--text-strong);
+  font-weight:800;
+}
+
+/* ====== Inputs ====== */
+label{ color:var(--text-strong); font-weight:700 }
+.form-control{
+  background: var(--surface-3);
+  color: var(--text-strong);
+  border:1px solid rgba(255,255,255,.12);
+  border-radius:12px;
+}
+.form-control::placeholder{ color:#8ea2b7 }
+.form-control:focus{
+  border-color:#6aaeff; box-shadow:none; background: var(--surface-3); color:var(--text-strong);
+}
+
+/* ====== Helper badges ====== */
+.badge-chip{
+  background: var(--surface-3);
+  color: var(--text-strong);
+  border:1px solid rgba(255,255,255,.12);
+  border-radius:999px; padding:.25rem .6rem; font-weight:800
+}
+
+/* ====== List ====== */
+.list-group-item{
+  background: var(--surface-3);
+  color: var(--text-normal);
+  border:1px solid rgba(255,255,255,.10);
+  display:flex; align-items:center; justify-content:space-between;
+  border-radius:12px; margin-bottom:8px;
+}
+.list-group-item .title{
+  color: var(--text-strong);
+  font-weight:900;
+}
+.drag-handle{ cursor:grab; opacity:.9 }
 .drag-handle:active{ cursor:grabbing }
-.badge-soft{ background:#25303a; color:#bfe8ec; border:1px solid rgba(255,255,255,.10); border-radius:999px; padding:.2rem .5rem; font-weight:800 }
-.alert-success{background:rgba(46,204,113,.12);color:#7ee2a6;border:1px solid rgba(46,204,113,.35)}
-.alert-danger {background:rgba(229,57,53,.12); color:#ff9f9c;border:1px solid rgba(229,57,53,.35)}
+
+/* เม็ดบอกจำนวนเมนู */
+.badge-soft{
+  background: var(--surface-2);
+  color:#eaf6ff;
+  border:1px solid rgba(255,255,255,.12);
+  border-radius:999px; padding:.2rem .6rem; font-weight:800
+}
+
+/* Alerts */
+.alert-success{
+  background:#0e1a12; color:#bbf7d0; border:1px solid #15803d; border-radius:12px
+}
+.alert-danger{
+  background:#1b1111; color:#ffb4b0; border:1px solid rgba(255,0,0,.35); border-radius:12px
+}
+
+/* ปุ่มสถานะ เปิด/ปิด ให้ดูเป็นชิป */
+.btn-toggle{
+  background: var(--surface-2);
+  border:1px solid rgba(255,255,255,.14);
+  color: var(--text-strong);
+  border-radius:999px;
+  font-weight:900;
+}
+.btn-toggle.on{ background:#10331a; border-color:#17853f; color:#bff7d2 }
+.btn-toggle.off{ background:#2a1a1a; border-color:#a23b3b; color:#ffc9c7 }
+/* === Admin button: Front_Store blue === */
+.btn-admin{
+  background: linear-gradient(180deg, #56b2ff, #3aa3ff);
+  border: 1px solid #1e6acc;
+  color:#fff !important;
+  font-weight:900;
+  border-radius: var(--radius);
+  padding:.38rem .8rem;
+  box-shadow:0 8px 22px rgba(58,163,255,.28);
+}
+.btn-admin .bi{ margin-right:.35rem; }
+.btn-admin:hover{ filter:brightness(1.05); transform:translateY(-1px); color:#fff !important; }
+.btn-admin:focus{ outline:3px solid rgba(58,163,255,.35); outline-offset:2px; }
+
 </style>
 </head>
 <body>
 <div class="wrap">
 
   <div class="d-flex align-items-center justify-content-between mb-3">
-    <h4 class="mb-0 font-weight-bold"><i class="bi bi-columns-gap"></i> จัดการหมวดหมู่ (Categories)</h4>
+    <h4 class="mb-0 font-weight-bold" style="color:var(--text-strong)"><i class="bi bi-columns-gap"></i> จัดการหมวดหมู่ (Categories)</h4>
     <div>
-      <a href="adminmenu.php" class="btn btn-sm btn-outline-light mr-2"><i class="bi bi-gear"></i> เมนูแอดมิน</a>
+      <a href="adminmenu.php" class="btn btn-admin btn-sm mr-2">
+  <i class="bi bi-gear"></i> เมนูแอดมิน
+</a>
+
       <a href="../logout.php" class="btn btn-sm btn-outline-light"><i class="bi bi-box-arrow-right"></i> ออกจากระบบ</a>
     </div>
   </div>
@@ -181,8 +275,8 @@ label{ color:var(--brand-700); font-weight:700 }
     <div class="p-3">
       <form method="post" class="form-inline">
         <input type="hidden" name="action" value="create">
-        <input type="text" name="category_name" class="form-control mr-2 mb-2" placeholder="ชื่อหมวดหมู่ เช่น เครื่องดื่ม" required>
-        <button class="btn btn-main mb-2">เพิ่ม</button>
+        <input type="text" name="category_name" class="form-control mr-2 mb-2" style="min-width:260px" placeholder="ชื่อหมวดหมู่ เช่น เครื่องดื่ม" required>
+        <button class="btn btn-main mb-2"><i class="bi bi-plus-lg"></i> เพิ่ม</button>
       </form>
     </div>
   </div>
@@ -191,7 +285,7 @@ label{ color:var(--brand-700); font-weight:700 }
   <div class="cardx">
     <div class="card-head d-flex align-items-center justify-content-between">
       <div><i class="bi bi-list-ol"></i> เรียงลำดับ/แก้ไขหมวดหมู่</div>
-      <span class="badge-chip">ลากแถบ <i class="bi bi-grip-vertical"></i> เพื่อจัดตำแหน่ง</span>
+      <span class="badge-chip">ลากไอคอน <i class="bi bi-grip-vertical"></i> เพื่อจัดตำแหน่ง</span>
     </div>
     <div class="p-2">
       <ul id="catList" class="list-group">
@@ -199,18 +293,23 @@ label{ color:var(--brand-700); font-weight:700 }
           <?php while($c=$cats->fetch_assoc()): ?>
             <li class="list-group-item" data-id="<?= (int)$c['category_id'] ?>">
               <div class="d-flex align-items-center">
-                <i class="bi bi-grip-vertical mr-3 drag-handle"></i>
+                <i class="bi bi-grip-vertical mr-3 drag-handle" aria-hidden="true"></i>
                 <div>
                   <div class="title"><?= h($c['category_name']) ?></div>
-                  <div class="small text-muted">ID: <?= (int)$c['category_id'] ?> • เมนู: <span class="badge-soft"><?= (int)$c['menu_count'] ?></span></div>
+                  <div class="small text-muted">
+                    ID: <?= (int)$c['category_id'] ?> • เมนู:
+                    <span class="badge-soft"><?= (int)$c['menu_count'] ?></span>
+                  </div>
                 </div>
               </div>
               <div class="d-flex align-items-center">
                 <form method="post" class="form-inline mr-2" onsubmit="return confirm('สลับสถานะใช้งาน?')">
                   <input type="hidden" name="action" value="toggle">
                   <input type="hidden" name="id" value="<?= (int)$c['category_id'] ?>">
-                  <button class="btn btn-sm <?= ((int)$c['is_active']===1?'btn-outline-light':'btn-outline-light') ?>">
-                    <?= ((int)$c['is_active']===1? 'เปิดอยู่' : 'ปิดอยู่') ?>
+                  <?php $on = ((int)$c['is_active']===1); ?>
+                  <button class="btn btn-sm btn-toggle <?= $on?'on':'off' ?>" type="submit">
+                    <i class="bi <?= $on?'bi-toggle-on':'bi-toggle-off' ?>"></i>
+                    <?= $on? 'เปิดอยู่' : 'ปิดอยู่' ?>
                   </button>
                 </form>
 
@@ -235,15 +334,15 @@ label{ color:var(--brand-700); font-weight:700 }
     </div>
   </div>
 
-  <!-- Rename modal (simple) -->
+  <!-- Rename box -->
   <div class="cardx mt-3" id="renameBox" style="display:none">
     <div class="card-head"><i class="bi bi-pencil"></i> เปลี่ยนชื่อหมวดหมู่</div>
     <div class="p-3">
       <form method="post" class="form-inline">
         <input type="hidden" name="action" value="rename">
         <input type="hidden" name="id" id="renameId">
-        <input type="text" name="category_name" id="renameName" class="form-control mr-2 mb-2" required>
-        <button class="btn btn-main mb-2">บันทึก</button>
+        <input type="text" name="category_name" id="renameName" class="form-control mr-2 mb-2" style="min-width:260px" required>
+        <button class="btn btn-main mb-2"><i class="bi bi-save"></i> บันทึก</button>
         <button type="button" class="btn btn-outline-light mb-2" onclick="closeRename()">ยกเลิก</button>
       </form>
     </div>

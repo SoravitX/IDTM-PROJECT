@@ -14,8 +14,12 @@ $display  = $username ?: $name;
   <meta charset="UTF-8">
   <title>เลือกสิทธิการใช้งาน • PSU Blue Cafe</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <!-- Bootstrap -->
   <link rel="stylesheet"
         href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+  <!-- Bootstrap Icons -->
+  <link rel="stylesheet"
+        href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
   <style>
     /* ===== Teal-Graphite Theme ===== */
     :root{
@@ -74,6 +78,20 @@ $display  = $username ?: $name;
     .top-chip .sp{ flex:1 }
     .top-chip .btn{ border-radius:12px; font-weight:800 }
 
+    /* Logout same look as other pages */
+    .btn-logout{
+      background:linear-gradient(180deg, #e53935, #c62828);
+      color:#fff !important;
+      font-weight:800;
+      border:1px solid #b71c1c;
+      border-radius:12px;
+      padding:.45rem .85rem;
+      display:inline-flex; align-items:center; gap:6px;
+      box-shadow:0 4px 12px rgba(229,57,53,.35);
+      text-decoration:none !important;
+    }
+    .btn-logout:hover{ filter:brightness(1.08); }
+
     /* Title */
     h3{
       text-align:center; margin-bottom:18px; font-weight:900;
@@ -110,24 +128,22 @@ $display  = $username ?: $name;
       margin:0; font-weight:900; color:var(--text-strong); letter-spacing:.3px;
     }
     .tile .tag{
-      margin-top:8px; font-size:.9rem; color:var(--text-muted);
-      background: color-mix(in oklab, var(--surface-2), white 6%);
-      border:1px solid color-mix(in oklab, var(--brand-700), black 18%);
-      padding:6px 10px; border-radius:999px; font-weight:800;
+      margin-top:8px;
+      font-size:.9rem;
+      color:#FFFFFF;
+      background: color-mix(in oklab, var(--surface-2), black 10%);
+      border:1px solid color-mix(in oklab, var(--brand-500), black 30%);
+      padding:6px 12px;
+      border-radius:999px;
+      font-weight:900;
+      letter-spacing:.2px;
+      text-shadow:0 1px 2px rgba(0,0,0,.45);
     }
 
     /* Column spacing on mobile */
     .row.gx-12{ margin-left:-6px; margin-right:-6px }
     .row.gx-12 > [class^="col"]{ padding-left:6px; padding-right:6px }
 
-    /* Danger/Logout */
-    .btn-danger{
-      background: linear-gradient(180deg, #ff6b6b, #e94444);
-      border:1px solid #c22f2f; color:#220202;
-    }
-    .btn-danger:hover{ filter:brightness(1.05) }
-
-    /* Small utils */
     .muted{ color:var(--text-muted) }
   </style>
 </head>
@@ -139,7 +155,9 @@ $display  = $username ?: $name;
       <span class="muted">•</span>
       <div class="user">ผู้ใช้: <strong><?= htmlspecialchars($display, ENT_QUOTES, 'UTF-8') ?></strong></div>
       <div class="sp"></div>
-      <a href="../logout.php" class="btn btn-sm btn-danger">ออกจากระบบ</a>
+      <a href="../logout.php" class="btn btn-logout" title="ออกจากระบบ">
+        <i class="bi bi-box-arrow-right"></i> ออกจากระบบ
+      </a>
     </div>
 
     <h3>เลือกสิทธิการใช้งาน</h3>
